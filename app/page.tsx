@@ -1,58 +1,115 @@
-import { DeployButton } from "@/components/deploy-button";
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { AuthButton } from "@/components/auth-button";
-import { Hero } from "@/components/hero";
-import { ThemeSwitcher } from "@/components/theme-switcher";
-import { ConnectSupabaseSteps } from "@/components/tutorial/connect-supabase-steps";
-import { SignUpUserSteps } from "@/components/tutorial/sign-up-user-steps";
-import { hasEnvVars } from "@/lib/utils";
-import Link from "next/link";
-import { Suspense } from "react";
+import { CTASection } from "@/components/cta-section";
+import { FAQAccordion } from "@/components/faq-accordion";
+import { Footer } from "@/components/footer";
+import { GradientBackground } from "@/components/gradient-background";
+import { HeroSection } from "@/components/landing/hero-section";
+import { FeatureGrid } from "@/components/landing/feature-grid";
+import { HowItWorksSection } from "@/components/landing/how-it-works";
+import { LiveSavingsSection } from "@/components/landing/live-savings";
+import { MockAuditPreview } from "@/components/landing/mock-audit-preview";
+import { PainPointsSection } from "@/components/landing/pain-points";
+import { TrustedBySection } from "@/components/landing/trusted-by";
+import { WhyStackAuditSection } from "@/components/landing/why-stack-audit";
+import { Navbar } from "@/components/navbar";
+import { SectionContainer } from "@/components/section-container";
 
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center">
-      <div className="flex-1 w-full flex flex-col gap-20 items-center">
-        <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
-          <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-            <div className="flex gap-5 items-center font-semibold">
-              <Link href={"/"}>Next.js Supabase Starter</Link>
-              <div className="flex items-center gap-2">
-                <DeployButton />
-              </div>
-            </div>
-            {!hasEnvVars ? (
-              <EnvVarWarning />
-            ) : (
-              <Suspense>
-                <AuthButton />
-              </Suspense>
-            )}
-          </div>
-        </nav>
-        <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">
-          <Hero />
-          <main className="flex-1 flex flex-col gap-6 px-4">
-            <h2 className="font-medium text-xl mb-4">Next steps</h2>
-            {hasEnvVars ? <SignUpUserSteps /> : <ConnectSupabaseSteps />}
-          </main>
-        </div>
+    <main className="relative min-h-screen overflow-hidden">
+      <GradientBackground />
+      <Navbar />
 
-        <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-16">
-          <p>
-            Powered by{" "}
-            <a
-              href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
-              target="_blank"
-              className="font-bold hover:underline"
-              rel="noreferrer"
-            >
-              Supabase
-            </a>
-          </p>
-          <ThemeSwitcher />
-        </footer>
+      <div className="relative z-10">
+        <SectionContainer>
+          <HeroSection />
+        </SectionContainer>
+
+        <SectionContainer className="mt-24">
+          <TrustedBySection />
+        </SectionContainer>
+
+        <SectionContainer className="mt-24 space-y-8">
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+              AI spend pain points
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              The stack gets expensive long before it looks expensive.
+            </h2>
+          </div>
+          <PainPointsSection />
+        </SectionContainer>
+
+        <SectionContainer id="how-it-works" className="mt-24 space-y-8">
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+              How it works
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Fast enough for startup teams, clear enough for finance.
+            </h2>
+          </div>
+          <HowItWorksSection />
+        </SectionContainer>
+
+        <SectionContainer className="mt-24 space-y-8">
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+              Live savings examples
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              What a realistic audit can uncover.
+            </h2>
+          </div>
+          <LiveSavingsSection />
+        </SectionContainer>
+
+        <SectionContainer className="mt-24 space-y-8">
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+              Product preview
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Built to feel like a real operating system for AI spend.
+            </h2>
+          </div>
+          <MockAuditPreview />
+        </SectionContainer>
+
+        <SectionContainer id="features" className="mt-24 space-y-8">
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+              Feature grid
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Premium clarity without enterprise bloat.
+            </h2>
+          </div>
+          <FeatureGrid />
+        </SectionContainer>
+
+        <SectionContainer className="mt-24">
+          <WhyStackAuditSection />
+        </SectionContainer>
+
+        <SectionContainer className="mt-24">
+          <CTASection />
+        </SectionContainer>
+
+        <SectionContainer id="faq" className="mt-24 space-y-8 pb-24">
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+              FAQ
+            </p>
+            <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+              Straight answers before you run the audit.
+            </h2>
+          </div>
+          <FAQAccordion />
+        </SectionContainer>
       </div>
+
+      <Footer />
     </main>
   );
 }
