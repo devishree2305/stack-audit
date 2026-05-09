@@ -12,7 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { createAuditReport } from "@/lib/audit-engine";
-import { getToolById, primaryUseCases, toolCatalog } from "@/lib/pricing-data";
+import {
+  getPlanDefaultSpend,
+  getToolById,
+  primaryUseCases,
+  toolCatalog,
+} from "@/lib/pricing-data";
 import type { AuditFormValues, AuditToolInput } from "@/types/audit";
 
 const defaultTool = (): AuditToolInput => ({
@@ -57,7 +62,10 @@ export function AuditForm() {
             ...updated,
             toolId: nextValue as AuditToolInput["toolId"],
             planId: nextTool?.plans[0]?.id ?? tool.planId,
-            monthlySpend: nextTool?.plans[0]?.monthlyPrice ?? tool.monthlySpend,
+            monthlySpend:
+              nextTool?.plans[0] !== undefined
+                ? getPlanDefaultSpend(nextTool.plans[0].monthlyPrice)
+                : tool.monthlySpend,
           };
         }
 
@@ -68,7 +76,10 @@ export function AuditForm() {
           return {
             ...updated,
             planId: nextValue as string,
-            monthlySpend: nextPlan?.monthlyPrice ?? tool.monthlySpend,
+            monthlySpend:
+              nextPlan !== undefined
+                ? getPlanDefaultSpend(nextPlan.monthlyPrice)
+                : tool.monthlySpend,
           };
         }
 
@@ -87,7 +98,7 @@ export function AuditForm() {
           id: crypto.randomUUID(),
           toolId: firstTool.id,
           planId: firstTool.plans[0].id,
-          monthlySpend: firstTool.plans[0].monthlyPrice,
+          monthlySpend: getPlanDefaultSpend(firstTool.plans[0].monthlyPrice),
           seats: 1,
           usageType: firstTool.usageOptions[0],
         },

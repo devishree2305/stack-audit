@@ -5,7 +5,12 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getToolById, toolCatalog, usageTypeLabels } from "@/lib/pricing-data";
+import {
+  formatPlanPrice,
+  getToolById,
+  toolCatalog,
+  usageTypeLabels,
+} from "@/lib/pricing-data";
 import type { AuditToolInput } from "@/types/audit";
 
 export function ToolInputCard({
@@ -80,7 +85,7 @@ export function ToolInputCard({
           >
             {toolMeta.plans.map((plan) => (
               <option key={plan.id} value={plan.id} className="bg-slate-950">
-                {plan.name} - ${plan.monthlyPrice}/mo
+                {plan.name} - {formatPlanPrice(plan.monthlyPrice)}
               </option>
             ))}
           </select>

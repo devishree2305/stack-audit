@@ -36,16 +36,17 @@ function resolveOptimizedSpend(input: AuditFormValues["tools"][number]) {
 
   const lighterUsage = input.usageType === "light" || input.usageType === "experimental";
   const sharedTool = input.usageType === "shared";
+  const basePrice = basePlan.monthlyPrice ?? 0;
 
   if (lighterUsage && input.seats > 1) {
-    optimizedSpend = Math.max(basePlan.monthlyPrice, input.monthlySpend * 0.62);
+    optimizedSpend = Math.max(basePrice, input.monthlySpend * 0.62);
     recommendationType = "consolidate";
     confidence = "High";
     suggestedPlan = `${basePlan.name} with fewer seats`;
     reason =
       "Low-intensity usage rarely needs dedicated paid seats for every user. Shared access or lighter seat allocation usually captures the same value.";
   } else if (lighterUsage) {
-    optimizedSpend = Math.max(basePlan.monthlyPrice * 0.75, input.monthlySpend * 0.72);
+    optimizedSpend = Math.max(basePrice * 0.75, input.monthlySpend * 0.72);
     recommendationType = "downgrade";
     confidence = "High";
     suggestedPlan = `Lighter ${basePlan.name} usage`;
@@ -205,7 +206,7 @@ export function createSampleAuditReport() {
         {
           id: "openai-1",
           toolId: "openai-api",
-          planId: "scaled",
+          planId: "api-direct",
           monthlySpend: 680,
           seats: 1,
           usageType: "daily",

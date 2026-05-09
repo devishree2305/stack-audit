@@ -1,6 +1,71 @@
 import type { AuditFormValues } from "@/types/audit";
 import type { ToolCatalogItem, ToolId, UsageType } from "@/types/tool";
 
+export const REAL_PRICING_REFERENCE = {
+  cursor: {
+    source: "https://cursor.com/pricing",
+    plans: [
+      { name: "Hobby", price: 0 },
+      { name: "Pro", price: 20 },
+      { name: "Business", price: 40 },
+      { name: "Enterprise", price: null },
+    ],
+  },
+  githubCopilot: {
+    source: "https://github.com/features/copilot/plans",
+    plans: [
+      { name: "Individual", price: 10 },
+      { name: "Business", price: 19 },
+      { name: "Enterprise", price: 39 },
+    ],
+  },
+  claude: {
+    source: "https://www.anthropic.com/pricing",
+    plans: [
+      { name: "Free", price: 0 },
+      { name: "Pro", price: 17 },
+      { name: "Max", price: 100 },
+      { name: "Team", price: 30 },
+      { name: "Enterprise", price: null },
+      { name: "API Direct", price: null },
+    ],
+  },
+  chatgpt: {
+    source: "https://openai.com/chatgpt/pricing/",
+    plans: [
+      { name: "Plus", price: 20 },
+      { name: "Team", price: 30 },
+      { name: "Enterprise", price: null },
+      { name: "API Direct", price: null },
+    ],
+  },
+  anthropicApi: {
+    source: "https://www.anthropic.com/pricing#api",
+    plans: [{ name: "API Direct", price: null }],
+  },
+  openaiApi: {
+    source: "https://openai.com/api/pricing/",
+    plans: [{ name: "API Direct", price: null }],
+  },
+  gemini: {
+    source: "https://one.google.com/about/ai-premium/",
+    plans: [
+      { name: "Pro", price: 20 },
+      { name: "Ultra", price: 42 },
+      { name: "API", price: null },
+    ],
+  },
+  windsurf: {
+    source: "https://windsurf.com/pricing",
+    plans: [
+      { name: "Free", price: 0 },
+      { name: "Pro", price: 20 },
+      { name: "Team", price: 40 },
+      { name: "Enterprise", price: null },
+    ],
+  },
+} as const;
+
 export const usageTypeLabels: Record<UsageType, string> = {
   daily: "Daily heavy use",
   weekly: "Weekly active use",
@@ -22,11 +87,19 @@ export const toolCatalog: ToolCatalogItem[] = [
     id: "cursor",
     name: "Cursor",
     shortName: "Cursor",
+    source: REAL_PRICING_REFERENCE.cursor.source,
     category: "workspace",
     accent: "from-sky-400/30 via-cyan-400/20 to-transparent",
     icon: "CU",
     usageOptions: ["daily", "weekly", "shared", "experimental"],
     plans: [
+      {
+        id: "hobby",
+        name: "Hobby",
+        monthlyPrice: 0,
+        description: "Free entry point for occasional solo usage.",
+        bestFor: "Exploration and personal projects",
+      },
       {
         id: "pro",
         name: "Pro",
@@ -41,12 +114,20 @@ export const toolCatalog: ToolCatalogItem[] = [
         description: "More control for security-conscious teams.",
         bestFor: "Growing engineering teams",
       },
+      {
+        id: "enterprise",
+        name: "Enterprise",
+        monthlyPrice: null,
+        description: "Custom enterprise pricing handled directly by Cursor.",
+        bestFor: "Larger teams needing procurement support",
+      },
     ],
   },
   {
     id: "github-copilot",
     name: "GitHub Copilot",
     shortName: "Copilot",
+    source: REAL_PRICING_REFERENCE.githubCopilot.source,
     category: "assistant",
     accent: "from-violet-400/30 via-indigo-400/20 to-transparent",
     icon: "GH",
@@ -66,30 +147,66 @@ export const toolCatalog: ToolCatalogItem[] = [
         description: "Admin controls and policy management.",
         bestFor: "Teams needing governance",
       },
+      {
+        id: "enterprise",
+        name: "Enterprise",
+        monthlyPrice: 39,
+        description: "Enterprise plan with broader controls and support.",
+        bestFor: "Larger organizations",
+      },
     ],
   },
   {
     id: "claude",
     name: "Claude",
     shortName: "Claude",
+    source: REAL_PRICING_REFERENCE.claude.source,
     category: "assistant",
     accent: "from-orange-400/25 via-amber-400/15 to-transparent",
     icon: "CL",
     usageOptions: ["daily", "weekly", "light", "experimental"],
     plans: [
       {
+        id: "free",
+        name: "Free",
+        monthlyPrice: 0,
+        description: "No-cost access for light personal use.",
+        bestFor: "Occasional users",
+      },
+      {
         id: "pro",
         name: "Pro",
-        monthlyPrice: 20,
+        monthlyPrice: 17,
         description: "Large context and strong writing/reasoning.",
         bestFor: "Power users and founders",
       },
       {
+        id: "max",
+        name: "Max",
+        monthlyPrice: 100,
+        description: "Higher-usage personal plan for power users.",
+        bestFor: "Heavy individual usage",
+      },
+      {
         id: "team",
         name: "Team",
-        monthlyPrice: 30,
+        monthlyPrice: 20,
         description: "Collaborative workspace plan.",
         bestFor: "Internal knowledge teams",
+      },
+      {
+        id: "enterprise",
+        name: "Enterprise",
+        monthlyPrice: null,
+        description: "Custom enterprise pricing for larger organizations.",
+        bestFor: "Procurement-led teams",
+      },
+      {
+        id: "api-direct",
+        name: "API Direct",
+        monthlyPrice: null,
+        description: "Usage-based API pricing depends on model traffic.",
+        bestFor: "Product teams using Claude via API",
       },
     ],
   },
@@ -97,6 +214,7 @@ export const toolCatalog: ToolCatalogItem[] = [
     id: "chatgpt",
     name: "ChatGPT",
     shortName: "ChatGPT",
+    source: REAL_PRICING_REFERENCE.chatgpt.source,
     category: "assistant",
     accent: "from-emerald-400/30 via-teal-400/20 to-transparent",
     icon: "GP",
@@ -116,30 +234,38 @@ export const toolCatalog: ToolCatalogItem[] = [
         description: "Shared workspace with admin features.",
         bestFor: "Cross-functional teams",
       },
+      {
+        id: "enterprise",
+        name: "Enterprise",
+        monthlyPrice: null,
+        description: "Custom enterprise pricing and procurement terms.",
+        bestFor: "Larger organizations",
+      },
+      {
+        id: "api-direct",
+        name: "API Direct",
+        monthlyPrice: null,
+        description: "API usage is billed separately from ChatGPT seats.",
+        bestFor: "Teams combining chat and API workflows",
+      },
     ],
   },
   {
     id: "openai-api",
     name: "OpenAI API",
     shortName: "OpenAI API",
+    source: REAL_PRICING_REFERENCE.openaiApi.source,
     category: "api",
     accent: "from-fuchsia-400/20 via-sky-400/15 to-transparent",
     icon: "OA",
     usageOptions: ["daily", "weekly", "experimental", "shared"],
     plans: [
       {
-        id: "payg",
-        name: "Pay as you go",
-        monthlyPrice: 120,
-        description: "Usage-based with wide model access.",
+        id: "api-direct",
+        name: "API Direct",
+        monthlyPrice: null,
+        description: "Usage-based API pricing varies by model and traffic.",
         bestFor: "Shipping AI product features",
-      },
-      {
-        id: "scaled",
-        name: "Scaled",
-        monthlyPrice: 400,
-        description: "Higher baseline spend for larger usage.",
-        bestFor: "Production-grade API usage",
       },
     ],
   },
@@ -147,24 +273,18 @@ export const toolCatalog: ToolCatalogItem[] = [
     id: "anthropic-api",
     name: "Anthropic API",
     shortName: "Anthropic API",
+    source: REAL_PRICING_REFERENCE.anthropicApi.source,
     category: "api",
     accent: "from-amber-400/20 via-orange-400/15 to-transparent",
     icon: "AN",
     usageOptions: ["daily", "weekly", "experimental", "shared"],
     plans: [
       {
-        id: "payg",
-        name: "Pay as you go",
-        monthlyPrice: 140,
-        description: "Usage-based access to Claude models.",
+        id: "api-direct",
+        name: "API Direct",
+        monthlyPrice: null,
+        description: "Usage-based API pricing depends on model mix and volume.",
         bestFor: "Reasoning-heavy AI features",
-      },
-      {
-        id: "scaled",
-        name: "Scaled",
-        monthlyPrice: 450,
-        description: "Higher monthly commitment for volume.",
-        bestFor: "Large prompt workloads",
       },
     ],
   },
@@ -172,24 +292,32 @@ export const toolCatalog: ToolCatalogItem[] = [
     id: "gemini",
     name: "Gemini",
     shortName: "Gemini",
+    source: REAL_PRICING_REFERENCE.gemini.source,
     category: "assistant",
     accent: "from-blue-400/25 via-indigo-400/15 to-transparent",
     icon: "GE",
     usageOptions: ["daily", "weekly", "light", "experimental"],
     plans: [
       {
-        id: "advanced",
-        name: "Advanced",
+        id: "pro",
+        name: "Pro",
         monthlyPrice: 20,
         description: "Broad Google ecosystem usage.",
         bestFor: "Workspace-heavy teams",
       },
       {
-        id: "business",
-        name: "Business",
-        monthlyPrice: 30,
-        description: "Enterprise-style controls and collaboration.",
-        bestFor: "Operations and research teams",
+        id: "ultra",
+        name: "Ultra",
+        monthlyPrice: 42,
+        description: "Higher-tier Gemini access for heavier usage.",
+        bestFor: "Advanced research and power users",
+      },
+      {
+        id: "api",
+        name: "API",
+        monthlyPrice: null,
+        description: "Usage-based Gemini API pricing varies by model and traffic.",
+        bestFor: "Teams building with Gemini via API",
       },
     ],
   },
@@ -197,24 +325,39 @@ export const toolCatalog: ToolCatalogItem[] = [
     id: "windsurf",
     name: "Windsurf",
     shortName: "Windsurf",
+    source: REAL_PRICING_REFERENCE.windsurf.source,
     category: "workspace",
     accent: "from-cyan-400/25 via-blue-400/15 to-transparent",
     icon: "WS",
     usageOptions: ["daily", "weekly", "experimental", "shared"],
     plans: [
       {
+        id: "free",
+        name: "Free",
+        monthlyPrice: 0,
+        description: "Free plan for trying Windsurf.",
+        bestFor: "Evaluation and light usage",
+      },
+      {
         id: "pro",
         name: "Pro",
-        monthlyPrice: 15,
+        monthlyPrice: 20,
         description: "Good alternative coding assistant price point.",
         bestFor: "Indie builders and engineers",
       },
       {
         id: "team",
         name: "Team",
-        monthlyPrice: 25,
+        monthlyPrice: 40,
         description: "Shared setup for collaborative usage.",
         bestFor: "Small engineering orgs",
+      },
+      {
+        id: "enterprise",
+        name: "Enterprise",
+        monthlyPrice: null,
+        description: "Custom enterprise pricing and support.",
+        bestFor: "Procurement-led organizations",
       },
     ],
   },
@@ -226,6 +369,14 @@ export const toolCatalogMap = new Map<ToolId, ToolCatalogItem>(
 
 export function getToolById(toolId: ToolId) {
   return toolCatalogMap.get(toolId);
+}
+
+export function getPlanDefaultSpend(monthlyPrice: number | null) {
+  return monthlyPrice ?? 0;
+}
+
+export function formatPlanPrice(monthlyPrice: number | null) {
+  return monthlyPrice === null ? "Custom pricing" : `$${monthlyPrice}/mo`;
 }
 
 export const trustedLogos = [
