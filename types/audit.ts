@@ -17,19 +17,41 @@ export interface AuditFormValues {
   tools: AuditToolInput[];
 }
 
+export interface AuditSummaryInput {
+  teamSize: number;
+  primaryUseCase: PrimaryUseCase;
+  currentMonthlySpend: number;
+  optimizedMonthlySpend: number;
+  totalMonthlySavings: number;
+  totalAnnualSavings?: number;
+  overallAssessment?: string;
+  recommendations: ToolRecommendation[];
+}
+
 export interface ToolRecommendation {
   id: string;
   toolId: ToolId;
   toolName: string;
+  tool: string;
   currentPlan: string;
+  recommendedPlan: string;
   suggestedPlan: string;
+  currentSeats: number;
+  recommendedSeats: number;
+  currentSpend: number;
+  optimizedSpend: number;
   currentMonthlySpend: number;
   optimizedMonthlySpend: number;
   monthlySavings: number;
   annualSavings: number;
   confidence: "High" | "Medium" | "Low";
+  actionType:
+    | "downgrade"
+    | "reduce_seats"
+    | "switch_vendor"
+    | "maintain"
+    | "usage_credit_opportunity";
   reason: string;
-  recommendationType: "downgrade" | "consolidate" | "optimize" | "keep";
 }
 
 export interface RoiMetric {
@@ -53,6 +75,7 @@ export interface AuditReport {
   optimizedMonthlySpend: number;
   totalMonthlySavings: number;
   totalAnnualSavings: number;
+  overallAssessment: string;
   optimizationScore: number;
   summary: string;
   recommendations: ToolRecommendation[];

@@ -1,128 +1,573 @@
-import { generateSummary } from "@/lib/anthropic";
+import { generateFallbackSummary } from "@/lib/anthropic";
 import { getToolById } from "@/lib/pricing-data";
+import type { ToolPlanOption } from "@/types/tool";
 import type {
   AuditFormValues,
   AuditReport,
+  AuditSummaryInput,
+  AuditToolInput,
   RoiMetric,
   ToolRecommendation,
 } from "@/types/audit";
 
-const useCaseAdjustment: Record<AuditFormValues["primaryUseCase"], number> = {
+type ActionType = ToolRecommendation["actionType"];
+type Confidence = ToolRecommendation["confidence"];
+type PrimaryUseCase = AuditFormValues["primaryUseCase"];
+
+interface ToolEvaluationContext {
+  toolInput: AuditToolInput;
+  formValues: AuditFormValues;
+  toolMeta: NonNullable<ReturnType<typeof getToolById>>;
+  currentPlan: ToolPlanOption;
+  usageWeight: number;
+}
+
+interface RecommendationCandidate {
+  recommendedToolName: string;
+  recommendedPlan: string;
+  recommendedSeats: number;
+  optimizedSpend: number;
+  actionType: ActionType;
+  confidence: Confidence;
+  reason: string;
+}
+
+function buildSummaryInput(
+  values: AuditFormValues,
+  recommendations: ToolRecommendation[],
+  currentMonthlySpend: number,
+  optimizedMonthlySpend: number,
+  totalMonthlySavings: number,
+  totalAnnualSavings: number,
+  overallAssessment: string,
+): AuditSummaryInput {
+  return {
+    teamSize: values.teamSize,
+    primaryUseCase: values.primaryUseCase,
+    currentMonthlySpend,
+    optimizedMonthlySpend,
+    totalMonthlySavings,
+    totalAnnualSavings,
+    overallAssessment,
+    recommendations,
+  };
+}
+
+const usageWeights: Record<AuditToolInput["usageType"], number> = {
+  experimental: 0.35,
+  light: 0.5,
+  weekly: 0.72,
+  shared: 0.82,
+  daily: 1,
+};
+
+const useCaseLabels: Record<PrimaryUseCase, string> = {
+  coding: "coding",
+  writing: "writing",
+  data: "data",
+  research: "research",
+  mixed: "mixed-use",
+};
+
+const useCaseAdjustment: Record<PrimaryUseCase, number> = {
   coding: 1,
-  writing: 0.8,
+  writing: 0.82,
   data: 0.9,
-  research: 0.85,
+  research: 0.88,
   mixed: 0.95,
 };
 
-function resolveOptimizedSpend(input: AuditFormValues["tools"][number]) {
-  const tool = getToolById(input.toolId);
-  if (!tool) {
-    return {
-      optimizedSpend: input.monthlySpend,
-      recommendationType: "keep" as const,
-      confidence: "Low" as const,
-      reason: "Tool pricing metadata is unavailable, so the current setup is kept.",
-      suggestedPlan: input.planId,
-    };
+function roundCurrency(value: number) {
+  return Number(value.toFixed(2));
+}
+
+function getUsageWeight(usageType: AuditToolInput["usageType"]) {
+  return usageWeights[usageType];
+}
+
+function isEnterprisePlan(planId: string) {
+  return planId === "enterprise";
+}
+
+function isPremiumSoloPlan(planId: string) {
+  return ["max", "ultra"].includes(planId);
+}
+
+function getKnownPlanSpend(plan: ToolPlanOption, seats: number) {
+  return plan.monthlyPrice === null ? null : roundCurrency(plan.monthlyPrice * seats);
+}
+
+function findPlan(toolId: AuditToolInput["toolId"], planId: string) {
+  return getToolById(toolId)?.plans.find((plan) => plan.id === planId) ?? null;
+}
+
+function buildMaintainReason(context: ToolEvaluationContext) {
+  const {
+    formValues: { teamSize, primaryUseCase },
+    toolInput,
+    currentPlan,
+  } = context;
+
+  return `For a ${teamSize}-person ${useCaseLabels[primaryUseCase]} team with ${toolInput.usageType.replace("-", " ")} usage, ${currentPlan.name} appears proportionate to the stated workflow. No cheaper real-plan change clearly preserves the same level of access.`;
+}
+
+function createMaintainCandidate(context: ToolEvaluationContext): RecommendationCandidate {
+  return {
+    recommendedToolName: context.toolMeta.name,
+    recommendedPlan: context.currentPlan.name,
+    recommendedSeats: context.toolInput.seats,
+    optimizedSpend: roundCurrency(context.toolInput.monthlySpend),
+    actionType: "maintain",
+    confidence: "High",
+    reason: buildMaintainReason(context),
+  };
+}
+
+function maybeCreateSeatReductionCandidate(
+  context: ToolEvaluationContext,
+): RecommendationCandidate | null {
+  const {
+    toolInput,
+    formValues: { teamSize, primaryUseCase },
+    currentPlan,
+  } = context;
+
+  if (currentPlan.monthlyPrice === null) {
+    return null;
   }
 
-  const basePlan = tool.plans.find((plan) => plan.id === input.planId) ?? tool.plans[0];
-  let optimizedSpend = input.monthlySpend;
-  let suggestedPlan = basePlan.name;
-  let recommendationType: ToolRecommendation["recommendationType"] = "keep";
-  let confidence: ToolRecommendation["confidence"] = "Medium";
-  let reason = "Current spend already maps closely to the observed usage profile.";
+  const canReduceSeats =
+    toolInput.seats > teamSize ||
+    (toolInput.usageType === "shared" && toolInput.seats >= 3) ||
+    (toolInput.usageType === "experimental" && toolInput.seats >= 3);
 
-  const lighterUsage = input.usageType === "light" || input.usageType === "experimental";
-  const sharedTool = input.usageType === "shared";
-  const basePrice = basePlan.monthlyPrice ?? 0;
+  if (!canReduceSeats) {
+    return null;
+  }
 
-  if (lighterUsage && input.seats > 1) {
-    optimizedSpend = Math.max(basePrice, input.monthlySpend * 0.62);
-    recommendationType = "consolidate";
-    confidence = "High";
-    suggestedPlan = `${basePlan.name} with fewer seats`;
-    reason =
-      "Low-intensity usage rarely needs dedicated paid seats for every user. Shared access or lighter seat allocation usually captures the same value.";
-  } else if (lighterUsage) {
-    optimizedSpend = Math.max(basePrice * 0.75, input.monthlySpend * 0.72);
-    recommendationType = "downgrade";
-    confidence = "High";
-    suggestedPlan = `Lighter ${basePlan.name} usage`;
-    reason =
-      "The current plan looks heavy relative to stated usage, so a lower-intensity setup should preserve value while reducing waste.";
-  } else if (sharedTool && input.seats >= 5) {
-    optimizedSpend = input.monthlySpend * 0.82;
-    recommendationType = "optimize";
-    confidence = "Medium";
-    suggestedPlan = `${basePlan.name} with seat rightsizing`;
-    reason =
-      "Team-shared AI tools often drift upward in seat count. Rightsizing access and pairing with a secondary tool usually trims meaningful spend.";
-  } else if (tool.category === "api") {
-    optimizedSpend = input.monthlySpend * 0.84;
-    recommendationType = "optimize";
-    confidence = "Medium";
-    suggestedPlan = `${basePlan.name} with model routing`;
-    reason =
-      "API costs are often reduced by routing lower-value traffic to cheaper models and tightening retries, batch jobs, or context length.";
+  let recommendedSeats = toolInput.seats;
+
+  if (toolInput.seats > teamSize) {
+    recommendedSeats = teamSize;
+  } else if (toolInput.usageType === "shared") {
+    recommendedSeats = Math.max(1, Math.min(toolInput.seats - 1, Math.ceil(teamSize * 0.7)));
+  } else if (toolInput.usageType === "experimental") {
+    recommendedSeats = Math.max(1, Math.ceil(toolInput.seats * 0.5));
+  }
+
+  if (recommendedSeats >= toolInput.seats) {
+    return null;
+  }
+
+  const optimizedSpend = roundCurrency(currentPlan.monthlyPrice * recommendedSeats);
+
+  if (optimizedSpend >= toolInput.monthlySpend) {
+    return null;
+  }
+
+  const confidence: Confidence =
+    toolInput.seats > teamSize || toolInput.usageType === "shared" ? "High" : "Medium";
+
+  return {
+    recommendedToolName: context.toolMeta.name,
+    recommendedPlan: currentPlan.name,
+    recommendedSeats,
+    optimizedSpend,
+    actionType: "reduce_seats",
+    confidence,
+    reason: `${toolInput.seats} paid seats looks oversized for a ${teamSize}-person ${useCaseLabels[primaryUseCase]} team with ${toolInput.usageType} usage. Reducing seats from ${toolInput.seats} to ${recommendedSeats} keeps the same plan while aligning paid access more closely with actual workflow intensity.`,
+  };
+}
+
+function maybeCreateSameVendorDowngrade(
+  context: ToolEvaluationContext,
+): RecommendationCandidate | null {
+  const {
+    toolInput,
+    formValues: { teamSize, primaryUseCase },
+    toolMeta,
+    currentPlan,
+    usageWeight,
+  } = context;
+
+  const seats = toolInput.seats;
+  let targetPlanId: string | null = null;
+
+  switch (toolInput.toolId) {
+    case "cursor":
+      if (currentPlan.id === "enterprise" && teamSize < 25) {
+        targetPlanId = seats >= 3 ? "business" : "pro";
+      } else if (
+        currentPlan.id === "business" &&
+        (teamSize <= 3 || seats <= 2 || usageWeight <= 0.68)
+      ) {
+        targetPlanId = "pro";
+      } else if (
+        currentPlan.id === "pro" &&
+        seats === 1 &&
+        usageWeight <= 0.35 &&
+        ["experimental", "light"].includes(toolInput.usageType)
+      ) {
+        targetPlanId = "hobby";
+      }
+      break;
+    case "github-copilot":
+      if (currentPlan.id === "enterprise" && teamSize < 25) {
+        targetPlanId = "business";
+      } else if (
+        currentPlan.id === "business" &&
+        teamSize <= 2 &&
+        seats <= 2 &&
+        usageWeight <= 0.68
+      ) {
+        targetPlanId = "individual";
+      }
+      break;
+    case "claude":
+      if (
+        currentPlan.id === "max" &&
+        seats === 1 &&
+        usageWeight <= 0.68 &&
+        ["writing", "research", "mixed"].includes(primaryUseCase)
+      ) {
+        targetPlanId = "pro";
+      } else if (
+        currentPlan.id === "team" &&
+        teamSize <= 2 &&
+        seats <= 2 &&
+        toolInput.usageType !== "shared"
+      ) {
+        targetPlanId = "pro";
+      } else if (currentPlan.id === "enterprise" && teamSize < 25) {
+        targetPlanId = seats >= 3 ? "team" : "pro";
+      } else if (
+        currentPlan.id === "pro" &&
+        seats === 1 &&
+        usageWeight <= 0.35 &&
+        ["writing", "research"].includes(primaryUseCase) &&
+        toolInput.usageType === "experimental"
+      ) {
+        targetPlanId = "free";
+      }
+      break;
+    case "chatgpt":
+      if (
+        currentPlan.id === "team" &&
+        teamSize <= 2 &&
+        seats <= 2 &&
+        usageWeight <= 0.72 &&
+        toolInput.usageType !== "shared"
+      ) {
+        targetPlanId = "plus";
+      } else if (currentPlan.id === "enterprise" && teamSize < 25) {
+        targetPlanId = seats >= 3 ? "team" : "plus";
+      }
+      break;
+    case "gemini":
+      if (
+        currentPlan.id === "ultra" &&
+        (teamSize <= 5 || usageWeight <= 0.72 || primaryUseCase !== "data")
+      ) {
+        targetPlanId = "pro";
+      }
+      break;
+    case "windsurf":
+      if (currentPlan.id === "enterprise" && teamSize < 25) {
+        targetPlanId = seats >= 3 ? "team" : "pro";
+      } else if (
+        currentPlan.id === "team" &&
+        (teamSize <= 3 || seats <= 3 || usageWeight <= 0.68)
+      ) {
+        targetPlanId = "pro";
+      } else if (
+        currentPlan.id === "pro" &&
+        seats === 1 &&
+        usageWeight <= 0.35 &&
+        ["experimental", "light"].includes(toolInput.usageType)
+      ) {
+        targetPlanId = "free";
+      }
+      break;
+    default:
+      targetPlanId = null;
+  }
+
+  if (!targetPlanId) {
+    return null;
+  }
+
+  const targetPlan = findPlan(toolInput.toolId, targetPlanId);
+  const optimizedSpend = targetPlan ? getKnownPlanSpend(targetPlan, seats) : null;
+
+  if (!targetPlan || optimizedSpend === null || optimizedSpend >= toolInput.monthlySpend) {
+    return null;
+  }
+
+  const confidence: Confidence =
+    isEnterprisePlan(currentPlan.id) || isPremiumSoloPlan(currentPlan.id) ? "High" : "Medium";
+
+  return {
+    recommendedToolName: toolMeta.name,
+    recommendedPlan: targetPlan.name,
+    recommendedSeats: seats,
+    optimizedSpend,
+    actionType: "downgrade",
+    confidence,
+    reason: `${currentPlan.name} appears oversized for a ${teamSize}-person ${useCaseLabels[primaryUseCase]} team with ${toolInput.usageType} usage. ${targetPlan.name} is a real lower-cost plan from ${toolMeta.name} that should better match the stated workflow without assuming a capability loss your inputs do not justify.`,
+  };
+}
+
+function maybeCreateVendorSwitchCandidate(
+  context: ToolEvaluationContext,
+): RecommendationCandidate | null {
+  const {
+    toolInput,
+    formValues: { teamSize, primaryUseCase },
+    currentPlan,
+    usageWeight,
+  } = context;
+
+  const seats = toolInput.seats;
+
+  if (
+    toolInput.toolId === "chatgpt" &&
+    currentPlan.id === "team" &&
+    primaryUseCase === "writing" &&
+    teamSize <= 2 &&
+    seats <= 2 &&
+    usageWeight <= 0.5
+  ) {
+    const targetPlan = findPlan("claude", "pro");
+    const optimizedSpend = targetPlan ? getKnownPlanSpend(targetPlan, seats) : null;
+
+    if (targetPlan && optimizedSpend !== null && optimizedSpend < toolInput.monthlySpend) {
+      return {
+        recommendedToolName: "Claude",
+        recommendedPlan: targetPlan.name,
+        recommendedSeats: seats,
+        optimizedSpend,
+        actionType: "switch_vendor",
+        confidence: "Medium",
+        reason: `ChatGPT Team collaboration features may be underutilized for a ${teamSize}-person writing workflow with ${toolInput.usageType} usage. Claude Pro is a lower-cost real plan that preserves strong writing capability without paying for team collaboration overhead.`,
+      };
+    }
+  }
+
+  if (
+    toolInput.toolId === "claude" &&
+    currentPlan.id === "max" &&
+    ["writing", "research"].includes(primaryUseCase) &&
+    teamSize <= 2 &&
+    usageWeight <= 0.5
+  ) {
+    const targetPlan = findPlan("chatgpt", "plus");
+    const optimizedSpend = targetPlan ? getKnownPlanSpend(targetPlan, seats) : null;
+
+    if (targetPlan && optimizedSpend !== null && optimizedSpend < toolInput.monthlySpend) {
+      return {
+        recommendedToolName: "ChatGPT",
+        recommendedPlan: targetPlan.name,
+        recommendedSeats: seats,
+        optimizedSpend,
+        actionType: "switch_vendor",
+        confidence: "Medium",
+        reason: `Your ${seats}-seat ${primaryUseCase} workflow is unlikely to require Claude Max throughput limits at ${toolInput.usageType} intensity. ChatGPT Plus is a materially cheaper real plan for lightweight research and writing use cases.`,
+      };
+    }
+  }
+
+  if (
+    toolInput.toolId === "cursor" &&
+    ["business", "enterprise"].includes(currentPlan.id) &&
+    ["coding", "mixed"].includes(primaryUseCase) &&
+    usageWeight <= 0.5 &&
+    teamSize <= 8
+  ) {
+    const targetPlan = findPlan("github-copilot", "business");
+    const optimizedSpend = targetPlan ? getKnownPlanSpend(targetPlan, seats) : null;
+
+    if (targetPlan && optimizedSpend !== null && optimizedSpend < toolInput.monthlySpend) {
+      return {
+        recommendedToolName: "GitHub Copilot",
+        recommendedPlan: targetPlan.name,
+        recommendedSeats: seats,
+        optimizedSpend,
+        actionType: "switch_vendor",
+        confidence: "Medium",
+        reason: `Cursor ${currentPlan.name} can be expensive for a ${teamSize}-person ${primaryUseCase} team if the workflow is mostly basic code completion and chat assistance. GitHub Copilot Business is a lower-cost real alternative for that usage profile.`,
+      };
+    }
+  }
+
+  return null;
+}
+
+function maybeCreateUsageCreditOpportunity(
+  context: ToolEvaluationContext,
+): RecommendationCandidate | null {
+  const {
+    toolInput,
+    formValues: { teamSize, primaryUseCase },
+    toolMeta,
+    currentPlan,
+  } = context;
+
+  if (toolMeta.category !== "api" || toolInput.monthlySpend < 250) {
+    return null;
   }
 
   return {
-    optimizedSpend: Number(optimizedSpend.toFixed(2)),
-    recommendationType,
-    confidence,
-    reason,
-    suggestedPlan,
+    recommendedToolName: toolMeta.name,
+    recommendedPlan: currentPlan.name,
+    recommendedSeats: toolInput.seats,
+    optimizedSpend: roundCurrency(toolInput.monthlySpend),
+    actionType: "usage_credit_opportunity",
+    confidence: "Low",
+    reason: `${toolMeta.name} is usage-priced rather than seat-priced, so no defensible plan downgrade can be quoted from public pricing alone. For a ${teamSize}-person ${useCaseLabels[primaryUseCase]} team spending $${toolInput.monthlySpend.toFixed(0)}/mo, startup credits or committed-use programs are worth checking before assuming the current API bill is final.`,
   };
+}
+
+function chooseBestCandidate(
+  currentSpend: number,
+  candidates: Array<RecommendationCandidate | null>,
+  fallback: RecommendationCandidate,
+) {
+  const actionableCandidates = candidates
+    .filter((candidate): candidate is RecommendationCandidate => candidate !== null)
+    .map((candidate) => ({
+      ...candidate,
+      monthlySavings: roundCurrency(Math.max(currentSpend - candidate.optimizedSpend, 0)),
+      decisionScore:
+        roundCurrency(Math.max(currentSpend - candidate.optimizedSpend, 0)) -
+        (candidate.actionType === "switch_vendor"
+          ? 15
+          : candidate.actionType === "usage_credit_opportunity"
+            ? 5
+            : 0),
+    }))
+    .filter(
+      (candidate) =>
+        candidate.monthlySavings > 0 || candidate.actionType === "usage_credit_opportunity",
+    )
+    .sort((left, right) => right.decisionScore - left.decisionScore);
+
+  return actionableCandidates[0] ?? fallback;
+}
+
+export function evaluateToolRecommendation(
+  toolInput: AuditToolInput,
+  formValues: AuditFormValues,
+): ToolRecommendation {
+  const toolMeta = getToolById(toolInput.toolId);
+
+  if (!toolMeta) {
+    return {
+      id: toolInput.id,
+      toolId: toolInput.toolId,
+      toolName: toolInput.toolId,
+      tool: toolInput.toolId,
+      currentPlan: toolInput.planId,
+      recommendedPlan: "Maintain current plan",
+      suggestedPlan: "Maintain current plan",
+      currentSeats: toolInput.seats,
+      recommendedSeats: toolInput.seats,
+      currentSpend: roundCurrency(toolInput.monthlySpend),
+      optimizedSpend: roundCurrency(toolInput.monthlySpend),
+      currentMonthlySpend: roundCurrency(toolInput.monthlySpend),
+      optimizedMonthlySpend: roundCurrency(toolInput.monthlySpend),
+      monthlySavings: 0,
+      annualSavings: 0,
+      confidence: "Low",
+      actionType: "maintain",
+      reason:
+        "Pricing metadata for this tool is unavailable, so the engine is conservatively maintaining the current setup.",
+    };
+  }
+
+  const currentPlan = toolMeta.plans.find((plan) => plan.id === toolInput.planId) ?? toolMeta.plans[0];
+  const context: ToolEvaluationContext = {
+    toolInput,
+    formValues,
+    toolMeta,
+    currentPlan,
+    usageWeight: getUsageWeight(toolInput.usageType),
+  };
+
+  const fallback = createMaintainCandidate(context);
+  const bestCandidate = chooseBestCandidate(toolInput.monthlySpend, [
+    maybeCreateSameVendorDowngrade(context),
+    maybeCreateSeatReductionCandidate(context),
+    maybeCreateVendorSwitchCandidate(context),
+    maybeCreateUsageCreditOpportunity(context),
+  ], fallback);
+
+  const currentSpend = roundCurrency(toolInput.monthlySpend);
+  const optimizedSpend = roundCurrency(bestCandidate.optimizedSpend);
+  const monthlySavings = roundCurrency(Math.max(currentSpend - optimizedSpend, 0));
+
+  return {
+    id: toolInput.id,
+    toolId: toolInput.toolId,
+    toolName: toolMeta.name,
+    tool: toolMeta.name,
+    currentPlan: currentPlan.name,
+    recommendedPlan: bestCandidate.recommendedPlan,
+    suggestedPlan: bestCandidate.recommendedPlan,
+    currentSeats: toolInput.seats,
+    recommendedSeats: bestCandidate.recommendedSeats,
+    currentSpend,
+    optimizedSpend,
+    currentMonthlySpend: currentSpend,
+    optimizedMonthlySpend: optimizedSpend,
+    monthlySavings,
+    annualSavings: roundCurrency(monthlySavings * 12),
+    confidence: bestCandidate.confidence,
+    actionType: bestCandidate.actionType,
+    reason: bestCandidate.reason,
+  };
+}
+
+export function getOverallAssessment(totalMonthlySavings: number) {
+  if (totalMonthlySavings > 500) {
+    return "High optimization opportunity detected.";
+  }
+
+  if (totalMonthlySavings < 100) {
+    return "Your AI stack already appears well optimized.";
+  }
+
+  return "Moderate optimization opportunity detected.";
 }
 
 export function createAuditReport(
   values: AuditFormValues,
   token = crypto.randomUUID().slice(0, 8),
 ): AuditReport {
-  const recommendations: ToolRecommendation[] = values.tools.map((toolInput) => {
-    const tool = getToolById(toolInput.toolId);
-    const currentPlan =
-      tool?.plans.find((plan) => plan.id === toolInput.planId)?.name ?? toolInput.planId;
-    const optimized = resolveOptimizedSpend(toolInput);
-    const monthlySavings = Number(
-      Math.max(toolInput.monthlySpend - optimized.optimizedSpend, 0).toFixed(2),
-    );
+  const recommendations = values.tools.map((toolInput) =>
+    evaluateToolRecommendation(toolInput, values),
+  );
 
-    return {
-      id: toolInput.id,
-      toolId: toolInput.toolId,
-      toolName: tool?.name ?? toolInput.toolId,
-      currentPlan,
-      suggestedPlan: optimized.suggestedPlan,
-      currentMonthlySpend: Number(toolInput.monthlySpend.toFixed(2)),
-      optimizedMonthlySpend: optimized.optimizedSpend,
-      monthlySavings,
-      annualSavings: Number((monthlySavings * 12).toFixed(2)),
-      confidence: optimized.confidence,
-      reason: optimized.reason,
-      recommendationType: optimized.recommendationType,
-    };
-  });
+  const currentMonthlySpend = roundCurrency(
+    values.tools.reduce((sum, tool) => sum + tool.monthlySpend, 0),
+  );
+  const optimizedMonthlySpend = roundCurrency(
+    recommendations.reduce((sum, recommendation) => sum + recommendation.optimizedSpend, 0),
+  );
+  const totalMonthlySavings = roundCurrency(
+    Math.max(currentMonthlySpend - optimizedMonthlySpend, 0),
+  );
+  const totalAnnualSavings = roundCurrency(totalMonthlySavings * 12);
+  const overallAssessment = getOverallAssessment(totalMonthlySavings);
 
-  const currentMonthlySpend = Number(
-    values.tools.reduce((sum, tool) => sum + tool.monthlySpend, 0).toFixed(2),
-  );
-  const optimizedMonthlySpend = Number(
-    recommendations.reduce((sum, tool) => sum + tool.optimizedMonthlySpend, 0).toFixed(2),
-  );
-  const totalMonthlySavings = Number(
-    Math.max(currentMonthlySpend - optimizedMonthlySpend, 0).toFixed(2),
-  );
-  const totalAnnualSavings = Number((totalMonthlySavings * 12).toFixed(2));
   const optimizationScore = Math.max(
     38,
     Math.min(
       96,
       Math.round(
         100 -
-          (totalMonthlySavings / Math.max(currentMonthlySpend, 1)) * 100 * useCaseAdjustment[values.primaryUseCase],
+          (totalMonthlySavings / Math.max(currentMonthlySpend, 1)) *
+            100 *
+            useCaseAdjustment[values.primaryUseCase],
       ),
     ),
   );
@@ -138,7 +583,8 @@ export function createAuditReport(
     {
       label: "Seat efficiency",
       value: `${Math.round(
-        values.tools.reduce((sum, tool) => sum + tool.seats, 0) / Math.max(values.teamSize, 1),
+        values.tools.reduce((sum, tool) => sum + tool.seats, 0) /
+          Math.max(values.teamSize, 1),
       )}x`,
     },
     {
@@ -150,17 +596,20 @@ export function createAuditReport(
 
   const chart = recommendations.map((recommendation) => ({
     label: recommendation.toolName,
-    current: recommendation.currentMonthlySpend,
-    optimized: recommendation.optimizedMonthlySpend,
+    current: recommendation.currentSpend,
+    optimized: recommendation.optimizedSpend,
   }));
 
-  const summary = generateSummary({
-    teamSize: values.teamSize,
-    primaryUseCase: values.primaryUseCase,
-    currentMonthlySpend,
-    optimizedMonthlySpend,
-    totalMonthlySavings,
-    recommendations,
+  const summary = generateFallbackSummary({
+    ...buildSummaryInput(
+      values,
+      recommendations,
+      currentMonthlySpend,
+      optimizedMonthlySpend,
+      totalMonthlySavings,
+      totalAnnualSavings,
+      overallAssessment,
+    ),
   });
 
   return {
@@ -172,6 +621,7 @@ export function createAuditReport(
     optimizedMonthlySpend,
     totalMonthlySavings,
     totalAnnualSavings,
+    overallAssessment,
     optimizationScore,
     summary,
     recommendations,
@@ -184,43 +634,99 @@ export function createAuditReport(
 export function createSampleAuditReport() {
   return createAuditReport(
     {
-      teamSize: 11,
-      primaryUseCase: "coding",
+      teamSize: 8,
+      primaryUseCase: "writing",
       tools: [
         {
-          id: "cursor-1",
-          toolId: "cursor",
-          planId: "business",
-          monthlySpend: 320,
-          seats: 8,
-          usageType: "shared",
-        },
-        {
-          id: "chatgpt-1",
+          id: "chatgpt-team",
           toolId: "chatgpt",
           planId: "team",
-          monthlySpend: 210,
-          seats: 7,
+          monthlySpend: 60,
+          seats: 2,
           usageType: "weekly",
         },
         {
-          id: "openai-1",
-          toolId: "openai-api",
-          planId: "api-direct",
-          monthlySpend: 680,
+          id: "claude-max",
+          toolId: "claude",
+          planId: "max",
+          monthlySpend: 100,
           seats: 1,
-          usageType: "daily",
+          usageType: "light",
         },
         {
-          id: "copilot-1",
-          toolId: "github-copilot",
-          planId: "business",
-          monthlySpend: 152,
-          seats: 8,
-          usageType: "light",
+          id: "openai-api",
+          toolId: "openai-api",
+          planId: "api-direct",
+          monthlySpend: 420,
+          seats: 1,
+          usageType: "daily",
         },
       ],
     },
     "sample-audit",
+  );
+}
+
+export function createHighSavingsMockAuditReport() {
+  return createAuditReport(
+    {
+      teamSize: 10,
+      primaryUseCase: "coding",
+      tools: [
+        {
+          id: "cursor-business",
+          toolId: "cursor",
+          planId: "business",
+          monthlySpend: 400,
+          seats: 10,
+          usageType: "weekly",
+        },
+        {
+          id: "copilot-enterprise",
+          toolId: "github-copilot",
+          planId: "enterprise",
+          monthlySpend: 390,
+          seats: 10,
+          usageType: "weekly",
+        },
+        {
+          id: "windsurf-team",
+          toolId: "windsurf",
+          planId: "team",
+          monthlySpend: 240,
+          seats: 6,
+          usageType: "shared",
+        },
+      ],
+    },
+    "high-savings-audit",
+  );
+}
+
+export function createOptimizedMockAuditReport() {
+  return createAuditReport(
+    {
+      teamSize: 4,
+      primaryUseCase: "coding",
+      tools: [
+        {
+          id: "cursor-pro",
+          toolId: "cursor",
+          planId: "pro",
+          monthlySpend: 80,
+          seats: 4,
+          usageType: "daily",
+        },
+        {
+          id: "chatgpt-plus",
+          toolId: "chatgpt",
+          planId: "plus",
+          monthlySpend: 40,
+          seats: 2,
+          usageType: "weekly",
+        },
+      ],
+    },
+    "optimized-audit",
   );
 }

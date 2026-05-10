@@ -5,7 +5,11 @@ import { GradientBackground } from "@/components/gradient-background";
 import { Navbar } from "@/components/navbar";
 import { ReportView } from "@/components/report/report-view";
 import { SectionContainer } from "@/components/section-container";
-import { createSampleAuditReport } from "@/lib/audit-engine";
+import {
+  createHighSavingsMockAuditReport,
+  createOptimizedMockAuditReport,
+  createSampleAuditReport,
+} from "@/lib/audit-engine";
 
 async function ReportPageContent({
   params,
@@ -13,7 +17,14 @@ async function ReportPageContent({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const initialReport = token === "sample-audit" ? createSampleAuditReport() : undefined;
+  const initialReport =
+    token === "sample-audit"
+      ? createSampleAuditReport()
+      : token === "high-savings-audit"
+        ? createHighSavingsMockAuditReport()
+        : token === "optimized-audit"
+          ? createOptimizedMockAuditReport()
+          : undefined;
 
   return <ReportView token={token} initialReport={initialReport} />;
 }

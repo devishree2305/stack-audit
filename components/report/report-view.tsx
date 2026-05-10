@@ -2,8 +2,17 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, BarChart3, Mail, Share2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  Copy,
+  Mail,
+  Rocket,
+  Share2,
+  Sparkles,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AnimatedCounter } from "@/components/animated-counter";
 import { CTASection } from "@/components/cta-section";
@@ -12,7 +21,9 @@ import { RecommendationCard } from "@/components/report/recommendation-card";
 import { SavingsCard } from "@/components/report/savings-card";
 import { Button } from "@/components/ui/button";
 import { createSampleAuditReport } from "@/lib/audit-engine";
-import type { AuditReport } from "@/types/audit";
+import type { AuditReport, AuditSummaryInput } from "@/types/audit";
+
+type SummarySource = "ai" | "fallback";
 
 export function ReportView({
   token,
@@ -24,6 +35,10 @@ export function ReportView({
   const [report, setReport] = useState<AuditReport>(
     initialReport ?? createSampleAuditReport(),
   );
+  const [personalizedSummary, setPersonalizedSummary] = useState(report.summary);
+  const [summarySource, setSummarySource] = useState<SummarySource>("fallback");
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+  const [shareState, setShareState] = useState<"idle" | "copied">("idle");
 
   useEffect(() => {
     const stored = window.localStorage.getItem(`stack-audit:report:${token}`);
@@ -39,11 +54,114 @@ export function ReportView({
     }
   }, [initialReport, token]);
 
+  useEffect(() => {
+    setPersonalizedSummary(report.summary);
+    setSummarySource("fallback");
+  }, [report.summary, report.token]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSummary() {
+      setIsSummaryLoading(true);
+
+      const payload: AuditSummaryInput = {
+        teamSize: report.teamSize,
+        primaryUseCase: report.primaryUseCase,
+        currentMonthlySpend: report.currentMonthlySpend,
+        optimizedMonthlySpend: report.optimizedMonthlySpend,
+        totalMonthlySavings: report.totalMonthlySavings,
+        totalAnnualSavings: report.totalAnnualSavings,
+        overallAssessment: report.overallAssessment,
+        recommendations: report.recommendations,
+      };
+
+      try {
+        const response = await fetch("/api/summary", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error("summary request failed");
+        }
+
+        const data = (await response.json()) as {
+          summary?: string;
+          source?: SummarySource;
+        };
+
+        if (cancelled) {
+          return;
+        }
+
+        if (data.summary) {
+          setPersonalizedSummary(data.summary);
+          setSummarySource(data.source === "ai" ? "ai" : "fallback");
+        }
+      } catch {
+        if (!cancelled) {
+          setPersonalizedSummary(report.summary);
+          setSummarySource("fallback");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSummaryLoading(false);
+        }
+      }
+    }
+
+    void loadSummary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    report.currentMonthlySpend,
+    report.optimizedMonthlySpend,
+    report.overallAssessment,
+    report.primaryUseCase,
+    report.recommendations,
+    report.summary,
+    report.teamSize,
+    report.token,
+    report.totalAnnualSavings,
+    report.totalMonthlySavings,
+  ]);
+
+  const recommendationsByValue = useMemo(
+    () =>
+      [...report.recommendations].sort(
+        (left, right) => right.monthlySavings - left.monthlySavings,
+      ),
+    [report.recommendations],
+  );
+
+  const actionableRecommendations = recommendationsByValue.filter(
+    (recommendation) => recommendation.actionType !== "maintain",
+  );
+
+  const handleShare = async () => {
+    const url = window.location.href;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareState("copied");
+      window.setTimeout(() => setShareState("idle"), 1800);
+    } catch {
+      setShareState("idle");
+    }
+  };
+
   return (
     <div className="space-y-10">
-      <section className="surface overflow-hidden rounded-[2rem] p-8 sm:p-10">
+      <section className="surface relative overflow-hidden rounded-[2rem] p-8 sm:p-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/10 via-transparent to-sky-400/8" />
         <div className="absolute inset-0" />
-        <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="relative grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-6">
             <div className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">
               Audit token: {report.token}
@@ -54,19 +172,37 @@ export function ReportView({
                   ? "Your AI stack has room to get leaner."
                   : "Your AI stack already looks well-optimized."}
               </h1>
-              <p className="max-w-2xl text-base leading-8 text-slate-300">
-                {report.summary}
+              <p className="text-sm font-medium uppercase tracking-[0.18em] text-emerald-300">
+                {report.overallAssessment}
               </p>
+              <div className="rounded-3xl border border-white/10 bg-slate-950/45 p-5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="inline-flex items-center gap-2 text-sm font-medium text-white">
+                    <Sparkles className="h-4 w-4 text-emerald-300" />
+                    Personalized audit summary
+                  </div>
+                  <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400">
+                    {summarySource === "ai" ? "AI-personalized" : "Reliable fallback"}
+                  </span>
+                  {isSummaryLoading ? (
+                    <span className="text-xs text-slate-500">Refreshing summary...</span>
+                  ) : null}
+                </div>
+                <p className="mt-4 max-w-2xl text-base leading-8 text-slate-300">
+                  {personalizedSummary}
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-3">
               <Button
                 type="button"
+                onClick={handleShare}
                 variant="outline"
                 className="rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10"
               >
-                <Share2 />
-                Share audit
+                {shareState === "copied" ? <Copy /> : <Share2 />}
+                {shareState === "copied" ? "Copied link" : "Share audit"}
               </Button>
               <Button
                 asChild
@@ -88,6 +224,10 @@ export function ReportView({
               <div className="mt-4 text-5xl font-semibold tracking-tight text-white">
                 <AnimatedCounter prefix="$" value={report.totalMonthlySavings} />
               </div>
+              <p className="mt-3 text-sm text-emerald-100/80">
+                ${report.currentMonthlySpend.toFixed(0)} current {"->"} $
+                {report.optimizedMonthlySpend.toFixed(0)} optimized
+              </p>
             </div>
             <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-6">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
@@ -96,10 +236,44 @@ export function ReportView({
               <div className="mt-4 text-5xl font-semibold tracking-tight text-white">
                 <AnimatedCounter prefix="$" value={report.totalAnnualSavings} />
               </div>
+              <p className="mt-3 text-sm text-slate-400">
+                Honest estimate based on real plan-price differences only
+              </p>
             </div>
           </div>
         </div>
       </section>
+
+      {report.consultationRecommended ? (
+        <section className="surface rounded-[1.75rem] border-emerald-400/20 bg-emerald-400/10 p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 text-sm font-medium text-emerald-200">
+                <Rocket className="h-4 w-4" />
+                Credex opportunity
+              </div>
+              <h2 className="text-2xl font-semibold text-white">
+                Savings above $500/month usually justify a procurement sprint.
+              </h2>
+              <p className="max-w-3xl text-sm leading-7 text-emerald-100/80">
+                Beyond the deterministic plan changes shown here, this level of
+                spend often unlocks meaningful extra savings through vendor
+                negotiation, startup credits, committed-use pricing, and tighter
+                API governance.
+              </p>
+            </div>
+            <Button
+              asChild
+              className="rounded-full bg-white text-slate-950 hover:bg-white/90"
+            >
+              <Link href="/audit">
+                Book Credex consultation
+                <ArrowRight />
+              </Link>
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-3">
         <SavingsCard label="Current monthly spend" value={report.currentMonthlySpend} />
@@ -181,9 +355,22 @@ export function ReportView({
       </section>
 
       <section className="surface rounded-[1.75rem] p-6">
-        <h2 className="text-xl font-semibold text-white">Recommendations</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-white">Recommendations</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Real-plan actions first. No fake pricing, no forced savings.
+            </p>
+          </div>
+          <div className="text-sm text-slate-500">
+            {actionableRecommendations.length > 0
+              ? `${actionableRecommendations.length} actionable recommendations`
+              : "No major optimization changes recommended"}
+          </div>
+        </div>
+
         <div className="mt-6 space-y-4">
-          {report.recommendations.map((recommendation) => (
+          {recommendationsByValue.map((recommendation) => (
             <RecommendationCard
               key={recommendation.id}
               recommendation={recommendation}
@@ -198,20 +385,29 @@ export function ReportView({
         <div className="surface rounded-[1.75rem] p-6">
           <div className="flex items-center gap-3">
             <Mail className="h-5 w-5 text-white" />
-            <h2 className="text-xl font-semibold text-white">Email this audit</h2>
+            <h2 className="text-xl font-semibold text-white">
+              {report.totalMonthlySavings < 100
+                ? "Stay informed about future opportunities"
+                : "Email this audit"}
+            </h2>
           </div>
           <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
-            Capture a lead or send the report to a founder, finance owner, or
-            ops lead for follow-up.
+            {report.totalMonthlySavings < 100
+              ? "Your stack already looks disciplined. Leave an email and we’ll notify you when pricing changes or new optimization opportunities become relevant."
+              : "Capture a lead or send the report to a founder, finance owner, or ops lead for follow-up."}
           </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]">
             <input
               type="email"
-              placeholder="team@company.com"
+              placeholder={
+                report.totalMonthlySavings < 100
+                  ? "founder@company.com"
+                  : "team@company.com"
+              }
               className="h-12 rounded-2xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-emerald-400/50"
             />
             <Button className="h-12 rounded-2xl bg-white text-slate-950 hover:bg-white/90">
-              Send report
+              {report.totalMonthlySavings < 100 ? "Notify me" : "Send report"}
             </Button>
           </div>
         </div>
@@ -223,20 +419,35 @@ export function ReportView({
           <h2 className="mt-4 text-2xl font-semibold text-white">
             {report.consultationRecommended
               ? "This stack is worth a deeper savings sprint."
-              : "No hard sell. Your spend is already pretty disciplined."}
+              : report.totalMonthlySavings < 100
+                ? "This stack already reads as well-managed."
+                : "There is real optimization opportunity without forcing a vendor overhaul."}
           </h2>
           <p className="mt-3 text-sm leading-7 text-slate-300">
             {report.consultationRecommended
               ? "Savings above $500/month usually justify a hands-on review of tool policy, procurement, and API routing. Book a Credex consultation to turn recommendations into implementation."
-              : "If you still want a second set of eyes, we can review governance and future-proofing, but the current stack does not show major obvious waste."}
+              : report.totalMonthlySavings < 100
+                ? "No hard sell here. The current stack does not show meaningful avoidable waste based on public pricing and the workflow you described."
+                : "The deterministic recommendations shown here should be actionable without assuming unrealistic workflow changes."}
           </p>
           <Button
             asChild
             className="mt-6 rounded-full bg-white text-slate-950 hover:bg-white/90"
           >
             <Link href="/audit">
-              Book Credex consultation
-              <ArrowRight />
+              {report.totalMonthlySavings < 100 ? (
+                <>
+                  Review another stack
+                  <CheckCircle2 />
+                </>
+              ) : (
+                <>
+                  {report.consultationRecommended
+                    ? "Book Credex consultation"
+                    : "Run another audit"}
+                  <ArrowRight />
+                </>
+              )}
             </Link>
           </Button>
         </div>
