@@ -49,6 +49,7 @@ export async function updateSession(request: NextRequest) {
   const user = data?.claims;
   const isPublicRoute =
     pathname === "/" ||
+    pathname.startsWith("/api") ||
     pathname.startsWith("/audit") ||
     pathname.startsWith("/report") ||
     pathname.startsWith("/auth");

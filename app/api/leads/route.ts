@@ -1,27 +1,63 @@
 import { NextResponse } from "next/server";
 
-export async function POST(request: Request) {
-  const body = (await request.json()) as {
-    email?: string;
-    auditId?: string;
-    companyName?: string;
-    role?: string;
-  };
+import { createErrorResponse, submitLeadCapture } from "@/lib/audit-workflow";
+import { sendAuditConfirmationEmail } from "@/lib/resend";
+import { createSupabaseAuditRepository } from "@/lib/supabase/audit-repository";
 
-  if (!body.email) {
-    return NextResponse.json(
-      { error: "Email is required." },
-      { status: 400 },
-    );
+function isLeadPayload(
+  body: unknown,
+): body is {
+  email: string;
+  auditId: string;
+  companyName?: string;
+  role?: string;
+  website?: string;
+  reportUrl?: string;
+} {
+  if (!body || typeof body !== "object") {
+    return false;
   }
 
-  return NextResponse.json({
-    success: true,
-    lead: {
-      email: body.email,
-      auditId: body.auditId ?? null,
-      companyName: body.companyName ?? null,
-      role: body.role ?? null,
-    },
-  });
+  const value = body as Record<string, unknown>;
+  return typeof value.email === "string" && typeof value.auditId === "string";
+}
+
+export async function handleLeadPost(
+  request: Request,
+  repository = createSupabaseAuditRepository(),
+) {
+  const body = (await request.json()) as unknown;
+
+  if (!isLeadPayload(body)) {
+    const errorResponse = createErrorResponse(
+      "Email and audit ID are required.",
+      400,
+    );
+    return NextResponse.json(errorResponse.body, { status: errorResponse.status });
+  }
+
+  try {
+    const response = await submitLeadCapture(body, new URL(request.url).origin, {
+      repository,
+      sendConfirmationEmail: sendAuditConfirmationEmail,
+    });
+
+    if (!response.emailSent && response.emailError) {
+      console.error("Lead confirmation email failed:", response.emailError);
+    }
+
+    return NextResponse.json(response);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "We couldn't save your details right now.";
+    const status = /valid work email|find that audit/i.test(message) ? 400 : 500;
+
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
+export async function POST(request: Request) {
+  return handleLeadPost(request);
 }

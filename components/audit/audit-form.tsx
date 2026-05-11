@@ -2,22 +2,22 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Plus } from "lucide-react";
+import { AlertCircle, ArrowRight, LoaderCircle, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import { AuditSummary } from "@/components/audit/audit-summary";
 import { ToolInputCard } from "@/components/audit/tool-input-card";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { createAuditReport } from "@/lib/audit-engine";
 import {
   getPlanDefaultSpend,
   getToolById,
   primaryUseCases,
   toolCatalog,
 } from "@/lib/pricing-data";
+import type { ApiErrorResponse, PersistedAuditResponse } from "@/types/api";
 import type { AuditFormValues, AuditToolInput } from "@/types/audit";
 
 const defaultTool = (): AuditToolInput => ({
@@ -38,6 +38,7 @@ const defaultValues: AuditFormValues = {
 export function AuditForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const { value, setValue, hydrated } = useLocalStorage<AuditFormValues>(
     "stack-audit:draft",
     defaultValues,
@@ -117,15 +118,52 @@ export function AuditForm() {
     });
   };
 
-  const handleSubmit = () => {
-    const report = createAuditReport(value);
-    window.localStorage.setItem(
-      `stack-audit:report:${report.token}`,
-      JSON.stringify(report),
-    );
-    startTransition(() => {
-      router.push(`/report/${report.token}`);
-    });
+  const handleSubmit = async () => {
+    setSubmissionError(null);
+
+    try {
+      const response = await fetch("/api/audit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(value),
+      });
+      const rawBody = await response.text();
+      const isJson = response.headers
+        .get("content-type")
+        ?.includes("application/json");
+      const data = isJson
+        ? (JSON.parse(rawBody) as PersistedAuditResponse | ApiErrorResponse)
+        : null;
+
+      if (!response.ok || !data || !("success" in data)) {
+        const fallbackMessage = rawBody
+          ? rawBody.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220)
+          : "";
+        throw new Error(
+          data && "error" in data
+            ? data.error
+            : fallbackMessage ||
+                "The audit API returned an unexpected response. Check the server console for the underlying error.",
+        );
+      }
+
+      window.localStorage.setItem(
+        `stack-audit:report:${data.shareToken}`,
+        JSON.stringify(data.report),
+      );
+
+      startTransition(() => {
+        router.push(`/report/${data.shareToken}`);
+      });
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error
+          ? error.message
+          : "We couldn't generate the audit right now.",
+      );
+    }
   };
 
   if (!hydrated) {
@@ -150,7 +188,7 @@ export function AuditForm() {
                   Build your AI spend profile
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                  Add the tools your team currently pays for and we’ll estimate
+                  Add the tools your team currently pays for and we&apos;ll estimate
                   where you can downgrade, consolidate, or route usage more
                   efficiently.
                 </p>
@@ -243,10 +281,18 @@ export function AuditForm() {
             disabled={isPending}
             className="rounded-full bg-white px-6 text-slate-950 hover:bg-white/90"
           >
-            Generate audit
+            {isPending ? <LoaderCircle className="animate-spin" /> : null}
+            {isPending ? "Saving audit..." : "Generate audit"}
             <ArrowRight />
           </Button>
         </div>
+
+        {submissionError ? (
+          <div className="flex items-start gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>{submissionError}</p>
+          </div>
+        ) : null}
       </div>
 
       <AuditSummary values={value} />

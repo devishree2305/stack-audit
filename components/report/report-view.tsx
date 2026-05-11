@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AnimatedCounter } from "@/components/animated-counter";
 import { CTASection } from "@/components/cta-section";
+import { LeadCaptureForm } from "@/components/report/lead-capture-form";
 import { PricingComparisonTable } from "@/components/report/pricing-comparison-table";
 import { RecommendationCard } from "@/components/report/recommendation-card";
 import { SavingsCard } from "@/components/report/savings-card";
@@ -28,9 +29,13 @@ type SummarySource = "ai" | "fallback";
 export function ReportView({
   token,
   initialReport,
+  auditId,
+  reportUrl,
 }: {
   token: string;
   initialReport?: AuditReport;
+  auditId?: string;
+  reportUrl: string;
 }) {
   const [report, setReport] = useState<AuditReport>(
     initialReport ?? createSampleAuditReport(),
@@ -41,17 +46,7 @@ export function ReportView({
   const [shareState, setShareState] = useState<"idle" | "copied">("idle");
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(`stack-audit:report:${token}`);
-    if (!stored) {
-      setReport(initialReport ?? createSampleAuditReport());
-      return;
-    }
-
-    try {
-      setReport(JSON.parse(stored) as AuditReport);
-    } catch {
-      setReport(initialReport ?? createSampleAuditReport());
-    }
+    setReport(initialReport ?? createSampleAuditReport());
   }, [initialReport, token]);
 
   useEffect(() => {
@@ -145,10 +140,8 @@ export function ReportView({
   );
 
   const handleShare = async () => {
-    const url = window.location.href;
-
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(reportUrl);
       setShareState("copied");
       window.setTimeout(() => setShareState("idle"), 1800);
     } catch {
@@ -382,35 +375,29 @@ export function ReportView({
       <PricingComparisonTable recommendations={report.recommendations} />
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="surface rounded-[1.75rem] p-6">
-          <div className="flex items-center gap-3">
-            <Mail className="h-5 w-5 text-white" />
-            <h2 className="text-xl font-semibold text-white">
-              {report.totalMonthlySavings < 100
-                ? "Stay informed about future opportunities"
-                : "Email this audit"}
-            </h2>
+        {auditId ? (
+          <LeadCaptureForm
+            auditId={auditId}
+            reportToken={report.token}
+            reportUrl={reportUrl}
+            teamSize={report.teamSize}
+            totalMonthlySavings={report.totalMonthlySavings}
+          />
+        ) : (
+          <div className="surface rounded-[1.75rem] p-6">
+            <div className="flex items-center gap-3">
+              <Mail className="h-5 w-5 text-white" />
+              <h2 className="text-xl font-semibold text-white">
+                Shareable sample report
+              </h2>
+            </div>
+            <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
+              Sample reports stay public for exploration, but lead capture and email
+              confirmation are only enabled for persisted audits created through the
+              live workflow.
+            </p>
           </div>
-          <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
-            {report.totalMonthlySavings < 100
-              ? "Your stack already looks disciplined. Leave an email and we’ll notify you when pricing changes or new optimization opportunities become relevant."
-              : "Capture a lead or send the report to a founder, finance owner, or ops lead for follow-up."}
-          </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <input
-              type="email"
-              placeholder={
-                report.totalMonthlySavings < 100
-                  ? "founder@company.com"
-                  : "team@company.com"
-              }
-              className="h-12 rounded-2xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-emerald-400/50"
-            />
-            <Button className="h-12 rounded-2xl bg-white text-slate-950 hover:bg-white/90">
-              {report.totalMonthlySavings < 100 ? "Notify me" : "Send report"}
-            </Button>
-          </div>
-        </div>
+        )}
 
         <div className="surface rounded-[1.75rem] p-6">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">

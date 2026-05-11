@@ -53,6 +53,18 @@ function buildSummaryInput(
   };
 }
 
+export function createAuditSummaryInput(values: AuditFormValues, report: AuditReport) {
+  return buildSummaryInput(
+    values,
+    report.recommendations,
+    report.currentMonthlySpend,
+    report.optimizedMonthlySpend,
+    report.totalMonthlySavings,
+    report.totalAnnualSavings,
+    report.overallAssessment,
+  );
+}
+
 const usageWeights: Record<AuditToolInput["usageType"], number> = {
   experimental: 0.35,
   light: 0.5,
@@ -539,6 +551,105 @@ export function getOverallAssessment(totalMonthlySavings: number) {
   return "Moderate optimization opportunity detected.";
 }
 
+function calculateOptimizationScore(
+  currentMonthlySpend: number,
+  totalMonthlySavings: number,
+  primaryUseCase: PrimaryUseCase,
+) {
+  return Math.max(
+    38,
+    Math.min(
+      96,
+      Math.round(
+        100 -
+          (totalMonthlySavings / Math.max(currentMonthlySpend, 1)) *
+            100 *
+            useCaseAdjustment[primaryUseCase],
+      ),
+    ),
+  );
+}
+
+function buildRoiMetrics(
+  teamSize: number,
+  tools: AuditToolInput[],
+  currentMonthlySpend: number,
+  totalMonthlySavings: number,
+): RoiMetric[] {
+  return [
+    {
+      label: "Waste ratio",
+      value: `${Math.round(
+        (totalMonthlySavings / Math.max(currentMonthlySpend, 1)) * 100,
+      )}%`,
+      tone: totalMonthlySavings > 0 ? "positive" : "default",
+    },
+    {
+      label: "Seat efficiency",
+      value: `${Math.round(
+        tools.reduce((sum, tool) => sum + tool.seats, 0) / Math.max(teamSize, 1),
+      )}x`,
+    },
+    {
+      label: "Payback window",
+      value: totalMonthlySavings > 0 ? "Immediate" : "Already optimized",
+      tone: totalMonthlySavings > 0 ? "positive" : "default",
+    },
+  ];
+}
+
+function buildChart(recommendations: ToolRecommendation[]) {
+  return recommendations.map((recommendation) => ({
+    label: recommendation.toolName,
+    current: recommendation.currentSpend,
+    optimized: recommendation.optimizedSpend,
+  }));
+}
+
+export function createPresentationAuditReport(input: {
+  token: string;
+  createdAt: string;
+  teamSize: number;
+  primaryUseCase: PrimaryUseCase;
+  tools: AuditToolInput[];
+  currentMonthlySpend: number;
+  optimizedMonthlySpend: number;
+  totalMonthlySavings: number;
+  totalAnnualSavings: number;
+  summary: string;
+  recommendations: ToolRecommendation[];
+}): AuditReport {
+  const overallAssessment = getOverallAssessment(input.totalMonthlySavings);
+  const optimizationScore = calculateOptimizationScore(
+    input.currentMonthlySpend,
+    input.totalMonthlySavings,
+    input.primaryUseCase,
+  );
+
+  return {
+    token: input.token,
+    createdAt: input.createdAt,
+    teamSize: input.teamSize,
+    primaryUseCase: input.primaryUseCase,
+    currentMonthlySpend: input.currentMonthlySpend,
+    optimizedMonthlySpend: input.optimizedMonthlySpend,
+    totalMonthlySavings: input.totalMonthlySavings,
+    totalAnnualSavings: input.totalAnnualSavings,
+    overallAssessment,
+    optimizationScore,
+    summary: input.summary,
+    recommendations: input.recommendations,
+    chart: buildChart(input.recommendations),
+    roiMetrics: buildRoiMetrics(
+      input.teamSize,
+      input.tools,
+      input.currentMonthlySpend,
+      input.totalMonthlySavings,
+    ),
+    consultationRecommended: input.totalMonthlySavings > 500,
+  };
+}
+
 export function createAuditReport(
   values: AuditFormValues,
   token = crypto.randomUUID().slice(0, 8),
@@ -559,47 +670,6 @@ export function createAuditReport(
   const totalAnnualSavings = roundCurrency(totalMonthlySavings * 12);
   const overallAssessment = getOverallAssessment(totalMonthlySavings);
 
-  const optimizationScore = Math.max(
-    38,
-    Math.min(
-      96,
-      Math.round(
-        100 -
-          (totalMonthlySavings / Math.max(currentMonthlySpend, 1)) *
-            100 *
-            useCaseAdjustment[values.primaryUseCase],
-      ),
-    ),
-  );
-
-  const roiMetrics: RoiMetric[] = [
-    {
-      label: "Waste ratio",
-      value: `${Math.round(
-        (totalMonthlySavings / Math.max(currentMonthlySpend, 1)) * 100,
-      )}%`,
-      tone: totalMonthlySavings > 0 ? "positive" : "default",
-    },
-    {
-      label: "Seat efficiency",
-      value: `${Math.round(
-        values.tools.reduce((sum, tool) => sum + tool.seats, 0) /
-          Math.max(values.teamSize, 1),
-      )}x`,
-    },
-    {
-      label: "Payback window",
-      value: totalMonthlySavings > 0 ? "Immediate" : "Already optimized",
-      tone: totalMonthlySavings > 0 ? "positive" : "default",
-    },
-  ];
-
-  const chart = recommendations.map((recommendation) => ({
-    label: recommendation.toolName,
-    current: recommendation.currentSpend,
-    optimized: recommendation.optimizedSpend,
-  }));
-
   const summary = generateFallbackSummary({
     ...buildSummaryInput(
       values,
@@ -612,23 +682,19 @@ export function createAuditReport(
     ),
   });
 
-  return {
+  return createPresentationAuditReport({
     token,
     createdAt: new Date().toISOString(),
     teamSize: values.teamSize,
     primaryUseCase: values.primaryUseCase,
+    tools: values.tools,
     currentMonthlySpend,
     optimizedMonthlySpend,
     totalMonthlySavings,
     totalAnnualSavings,
-    overallAssessment,
-    optimizationScore,
     summary,
     recommendations,
-    chart,
-    roiMetrics,
-    consultationRecommended: totalMonthlySavings > 500,
-  };
+  });
 }
 
 export function createSampleAuditReport() {
