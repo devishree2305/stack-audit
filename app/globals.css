@@ -72,30 +72,52 @@
       radial-gradient(circle at 80% 10%, rgba(139, 92, 246, 0.12), transparent 20rem),
       linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 1));
     min-height: 100vh;
-    font-family:
-      "Manrope",
-      "Avenir Next",
-      "Segoe UI",
-      sans-serif;
+    font-family: var(--font-sans), "Avenir Next", "Segoe UI", sans-serif;
     font-feature-settings: "ss01" 1, "cv01" 1, "cv11" 1;
+    text-rendering: optimizeLegibility;
   }
 
   code,
   pre {
-    font-family:
-      "JetBrains Mono",
-      "IBM Plex Mono",
-      "SFMono-Regular",
-      monospace;
+    font-family: var(--font-mono), "IBM Plex Mono", "SFMono-Regular", monospace;
   }
 }
 
 @layer utilities {
   .surface {
-    @apply border border-white/10 bg-white/5 shadow-[0_20px_80px_-40px_rgba(15,23,42,0.85)] backdrop-blur-xl;
+    @apply border border-white/10 bg-white/5 shadow-[0_20px_80px_-40px_rgba(15,23,42,0.85)] backdrop-blur-md sm:backdrop-blur-xl;
   }
 
   .text-balance {
     text-wrap: balance;
+  }
+
+  .numbers-stable {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fade-in-soft {
+    animation: fade-in-soft 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .fade-in-soft {
+    animation: none;
+  }
+}
+
+@keyframes fade-in-soft {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.5rem, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }

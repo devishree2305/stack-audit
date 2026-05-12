@@ -1,7 +1,4 @@
-"use client";
-
-import { animate, motion, useMotionValue, useTransform } from "framer-motion";
-import { useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 export function AnimatedCounter({
   value,
@@ -16,25 +13,16 @@ export function AnimatedCounter({
   decimals?: number;
   className?: string;
 }) {
-  const motionValue = useMotionValue(0);
-  const rounded = useTransform(motionValue, (latest) =>
-    latest.toFixed(decimals),
-  );
-
-  useEffect(() => {
-    const controls = animate(motionValue, value, {
-      duration: 1.2,
-      ease: "easeOut",
-    });
-
-    return () => controls.stop();
-  }, [motionValue, value]);
+  const formatted = value.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 
   return (
-    <motion.span className={className}>
+    <span className={cn("numbers-stable", className)}>
       {prefix}
-      <motion.span>{rounded}</motion.span>
+      <span>{formatted}</span>
       {suffix}
-    </motion.span>
+    </span>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   ArrowRight,
   BarChart3,
@@ -12,7 +11,7 @@ import {
   Share2,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { AnimatedCounter } from "@/components/animated-counter";
 import { CTASection } from "@/components/cta-section";
@@ -32,22 +31,6 @@ export function ReportView({
 }) {
   const [shareState, setShareState] = useState<"idle" | "copied" | "shared">("idle");
   const [shareMessage, setShareMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    console.log("[ReportView] rendering summary", {
-      token: report.token,
-      shareTitle: report.shareTitle,
-      summary: report.summary,
-      toolCount: report.toolCount,
-      totalAnnualSavings: report.totalAnnualSavings,
-    });
-  }, [
-    report.shareTitle,
-    report.summary,
-    report.token,
-    report.toolCount,
-    report.totalAnnualSavings,
-  ]);
 
   const recommendationsByValue = useMemo(
     () =>
@@ -273,18 +256,14 @@ export function ReportView({
                   </div>
                   <div className="space-y-2">
                     <div className="h-2 rounded-full bg-white/5">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(point.current / maxValue) * 100}%` }}
-                        transition={{ duration: 0.7, ease: "easeOut" }}
+                      <div
+                        style={{ width: `${(point.current / maxValue) * 100}%` }}
                         className="h-2 rounded-full bg-slate-500"
                       />
                     </div>
                     <div className="h-2 rounded-full bg-white/5">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(point.optimized / maxValue) * 100}%` }}
-                        transition={{ duration: 0.7, ease: "easeOut", delay: 0.08 }}
+                      <div
+                        style={{ width: `${(point.optimized / maxValue) * 100}%` }}
                         className="h-2 rounded-full bg-emerald-400"
                       />
                     </div>

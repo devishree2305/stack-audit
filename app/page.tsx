@@ -1,5 +1,6 @@
+import dynamic from "next/dynamic";
+
 import { CTASection } from "@/components/cta-section";
-import { FAQAccordion } from "@/components/faq-accordion";
 import { Footer } from "@/components/footer";
 import { GradientBackground } from "@/components/gradient-background";
 import { HeroSection } from "@/components/landing/hero-section";
@@ -11,6 +12,23 @@ import { PainPointsSection } from "@/components/landing/pain-points";
 import { WhyStackAuditSection } from "@/components/landing/why-stack-audit";
 import { Navbar } from "@/components/navbar";
 import { SectionContainer } from "@/components/section-container";
+
+const FAQAccordion = dynamic(
+  () => import("@/components/faq-accordion").then((mod) => mod.FAQAccordion),
+  {
+    loading: () => (
+      <div className="grid gap-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="surface h-[92px] rounded-3xl"
+            aria-hidden="true"
+          />
+        ))}
+      </div>
+    ),
+  },
+);
 
 export default function Home() {
   return (

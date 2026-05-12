@@ -1,10 +1,6 @@
-"use client";
-
 import Link from "next/link";
-import { motion } from "framer-motion";
 import { ArrowRight, ChevronRight, Sparkles } from "lucide-react";
 
-import { AnimatedCounter } from "@/components/animated-counter";
 import { Button } from "@/components/ui/button";
 
 const statCards = [
@@ -18,22 +14,12 @@ export function HeroSection() {
     <section className="relative overflow-hidden pt-16 sm:pt-24">
       <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-8">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55 }}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-300"
-          >
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-300">
             <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
             AI spend optimization for lean teams
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.06 }}
-            className="space-y-5"
-          >
+          <div className="space-y-5">
             <h1 className="text-balance text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
               Cut AI subscription waste before it becomes default operating cost.
             </h1>
@@ -42,14 +28,9 @@ export function HeroSection() {
               spots overlap, recommends cheaper plans, and turns scattered AI
               spend into a clean savings playbook.
             </p>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.12 }}
-            className="flex flex-col gap-3 sm:flex-row"
-          >
+          <div className="flex flex-col gap-3 sm:flex-row">
             <Button
               asChild
               size="lg"
@@ -71,38 +52,26 @@ export function HeroSection() {
                 <ChevronRight />
               </Link>
             </Button>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.18 }}
-            className="grid gap-3 sm:grid-cols-3"
-          >
+          <div className="grid gap-3 sm:grid-cols-3">
             {statCards.map((stat) => (
               <div
                 key={stat.label}
                 className="surface rounded-3xl p-4 transition hover:border-white/20 hover:bg-white/8"
               >
-                <div className="text-2xl font-semibold tracking-tight text-white">
-                  <AnimatedCounter
-                    value={stat.value}
-                    prefix={stat.prefix}
-                    suffix={stat.suffix}
-                  />
+                <div className="numbers-stable min-h-[2rem] text-2xl font-semibold tracking-tight text-white">
+                  {stat.prefix}
+                  {stat.value.toLocaleString("en-US")}
+                  {stat.suffix}
                 </div>
                 <div className="mt-2 text-sm text-slate-400">{stat.label}</div>
               </div>
             ))}
-          </motion.div>
+          </div>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.16 }}
-          className="surface relative overflow-hidden rounded-[2rem] p-4 sm:p-6"
-        >
+        <div className="surface relative overflow-hidden rounded-[2rem] p-4 sm:p-6">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/8 via-transparent to-violet-500/10" />
           <div className="relative rounded-[1.5rem] border border-white/10 bg-slate-950/80 p-5">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -120,29 +89,35 @@ export function HeroSection() {
             </div>
 
             <div className="mt-5 grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Current
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold text-white">$1,274</p>
-                  <p className="text-xs text-slate-400">monthly AI spend</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      Current
+                    </p>
+                    <p className="numbers-stable mt-3 text-2xl font-semibold text-white">
+                      $1,274
+                    </p>
+                    <p className="text-xs text-slate-400">monthly AI spend</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">
+                      Optimized
+                    </p>
+                    <p className="numbers-stable mt-3 text-2xl font-semibold text-white">
+                      $744
+                    </p>
+                    <p className="text-xs text-emerald-200/70">recommended spend</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                      Savings
+                    </p>
+                    <p className="numbers-stable mt-3 text-2xl font-semibold text-white">
+                      $530
+                    </p>
+                    <p className="text-xs text-slate-400">per month unlocked</p>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">
-                    Optimized
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold text-white">$744</p>
-                  <p className="text-xs text-emerald-200/70">recommended spend</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    Savings
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold text-white">$530</p>
-                  <p className="text-xs text-slate-400">per month unlocked</p>
-                </div>
-              </div>
 
               <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-5">
                 <div className="flex items-center justify-between">
@@ -178,7 +153,7 @@ export function HeroSection() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

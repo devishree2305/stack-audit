@@ -6,7 +6,7 @@ import { SectionContainer } from "@/components/section-container";
 
 export function Navbar() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/75 backdrop-blur-md sm:backdrop-blur-xl">
       <SectionContainer className="flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10 text-sm font-semibold text-emerald-300">
@@ -20,14 +20,26 @@ export function Navbar() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-8 text-sm text-slate-300 md:flex">
-          <Link href="/#how-it-works" className="transition hover:text-white">
+        <nav
+          aria-label="Primary"
+          className="hidden items-center gap-8 text-sm text-slate-300 md:flex"
+        >
+          <Link
+            href="/#how-it-works"
+            className="flex min-h-6 items-center py-2 transition hover:text-white"
+          >
             How it works
           </Link>
-          <Link href="/#features" className="transition hover:text-white">
+          <Link
+            href="/#features"
+            className="flex min-h-6 items-center py-2 transition hover:text-white"
+          >
             Features
           </Link>
-          <Link href="/#faq" className="transition hover:text-white">
+          <Link
+            href="/#faq"
+            className="flex min-h-6 items-center py-2 transition hover:text-white"
+          >
             FAQ
           </Link>
         </nav>

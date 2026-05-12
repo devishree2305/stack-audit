@@ -1,10 +1,25 @@
 import type { Metadata } from "next";
-import { ThemeProvider } from "next-themes";
+import { JetBrains_Mono, Manrope } from "next/font/google";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "http://localhost:3000";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "optional",
+  variable: "--font-sans",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400"],
+  display: "swap",
+  preload: false,
+  variable: "--font-mono",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
@@ -18,16 +33,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="dark">
-      <body className="bg-background antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
+    <html lang="en" className="dark">
+      <body
+        className={`${manrope.variable} ${jetbrainsMono.variable} bg-background antialiased`}
+      >
+        {children}
       </body>
     </html>
   );
