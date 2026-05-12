@@ -174,6 +174,12 @@ export async function persistAuditReport(
 ) {
   const initialReport = createAuditReport(values);
   const summaryResult = await generateAuditSummary(createAuditSummaryInput(values, initialReport));
+  console.log("[Audit Persistence] summary resolved", {
+    source: summaryResult.source,
+    summary: summaryResult.summary,
+    totalMonthlySavings: initialReport.totalMonthlySavings,
+    totalAnnualSavings: initialReport.totalAnnualSavings,
+  });
   const shareTokenGenerator = dependencies.generateToken ?? generateShareToken;
 
   let shareToken = await shareTokenGenerator();
@@ -204,6 +210,12 @@ export async function persistAuditReport(
   });
 
   const report = createAuditReportFromRecord(saved);
+
+  console.log("[Audit Persistence] report saved", {
+    auditId: saved.id,
+    shareToken: saved.share_token,
+    storedSummary: saved.ai_summary,
+  });
 
   return {
     auditId: saved.id,

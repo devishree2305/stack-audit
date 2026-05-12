@@ -34,7 +34,7 @@ export function HeroSection() {
             transition={{ duration: 0.6, delay: 0.06 }}
             className="space-y-5"
           >
-            <h1 className="text-balance text-5xl font-semibold tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
+            <h1 className="text-balance text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
               Cut AI subscription waste before it becomes default operating cost.
             </h1>
             <p className="max-w-2xl text-balance text-lg leading-8 text-slate-300 sm:text-xl">

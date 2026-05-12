@@ -8,7 +8,6 @@ import { HowItWorksSection } from "@/components/landing/how-it-works";
 import { LiveSavingsSection } from "@/components/landing/live-savings";
 import { MockAuditPreview } from "@/components/landing/mock-audit-preview";
 import { PainPointsSection } from "@/components/landing/pain-points";
-import { TrustedBySection } from "@/components/landing/trusted-by";
 import { WhyStackAuditSection } from "@/components/landing/why-stack-audit";
 import { Navbar } from "@/components/navbar";
 import { SectionContainer } from "@/components/section-container";
@@ -22,10 +21,6 @@ export default function Home() {
       <div className="relative z-10">
         <SectionContainer>
           <HeroSection />
-        </SectionContainer>
-
-        <SectionContainer className="mt-24">
-          <TrustedBySection />
         </SectionContainer>
 
         <SectionContainer className="mt-24 space-y-8">

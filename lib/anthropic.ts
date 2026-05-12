@@ -66,6 +66,13 @@ function createAnthropicClient() {
   return new Anthropic({ apiKey });
 }
 
+function logSummaryEvent(
+  stage: string,
+  payload: Record<string, unknown>,
+) {
+  console.log(`[Anthropic Summary] ${stage}`, payload);
+}
+
 function getTopRecommendation(recommendations: ToolRecommendation[]) {
   return [...recommendations].sort((left, right) => {
     if (right.monthlySavings !== left.monthlySavings) {
@@ -129,7 +136,20 @@ export async function generateAuditSummary(
   const fallbackSummary = generateFallbackSummary(input);
   const client = options?.client ?? createAnthropicClient();
 
+  logSummaryEvent("start", {
+    hasAnthropicClient: Boolean(client),
+    teamSize: input.teamSize,
+    primaryUseCase: input.primaryUseCase,
+    currentMonthlySpend: input.currentMonthlySpend,
+    optimizedMonthlySpend: input.optimizedMonthlySpend,
+    totalMonthlySavings: input.totalMonthlySavings,
+    recommendationCount: input.recommendations.length,
+  });
+
   if (!client) {
+    logSummaryEvent("fallback:no-client", {
+      summary: fallbackSummary,
+    });
     return {
       summary: fallbackSummary,
       source: "fallback" as const,
@@ -139,6 +159,12 @@ export async function generateAuditSummary(
   const timeoutMs = options?.timeoutMs ?? 8000;
 
   try {
+    logSummaryEvent("request", {
+      model: "claude-3-5-sonnet-latest",
+      timeoutMs,
+      promptPreview: buildAuditSummaryUserPrompt(input).slice(0, 400),
+    });
+
     const response = await Promise.race([
       client.messages.create({
         model: "claude-3-5-sonnet-latest",
@@ -160,17 +186,29 @@ export async function generateAuditSummary(
     const text = extractTextFromMessage(response.content);
 
     if (!text) {
+      logSummaryEvent("fallback:empty-response", {
+        summary: fallbackSummary,
+      });
       return {
         summary: fallbackSummary,
         source: "fallback" as const,
       };
     }
 
+    logSummaryEvent("success", {
+      source: "ai",
+      summary: text,
+    });
+
     return {
       summary: text,
       source: "ai" as const,
     };
-  } catch {
+  } catch (error) {
+    logSummaryEvent("fallback:error", {
+      error: error instanceof Error ? error.message : "Unknown Anthropic error",
+      summary: fallbackSummary,
+    });
     return {
       summary: fallbackSummary,
       source: "fallback" as const,

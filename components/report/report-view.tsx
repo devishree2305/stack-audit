@@ -12,7 +12,7 @@ import {
   Share2,
   Sparkles,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AnimatedCounter } from "@/components/animated-counter";
 import { CTASection } from "@/components/cta-section";
@@ -32,6 +32,22 @@ export function ReportView({
 }) {
   const [shareState, setShareState] = useState<"idle" | "copied" | "shared">("idle");
   const [shareMessage, setShareMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    console.log("[ReportView] rendering summary", {
+      token: report.token,
+      shareTitle: report.shareTitle,
+      summary: report.summary,
+      toolCount: report.toolCount,
+      totalAnnualSavings: report.totalAnnualSavings,
+    });
+  }, [
+    report.shareTitle,
+    report.summary,
+    report.token,
+    report.toolCount,
+    report.totalAnnualSavings,
+  ]);
 
   const recommendationsByValue = useMemo(
     () =>
@@ -136,7 +152,7 @@ export function ReportView({
                   <Button
                     type="button"
                     onClick={handleNativeShare}
-                    className="rounded-full bg-white text-slate-950 hover:bg-white/90"
+                    className="min-w-[170px] justify-center rounded-full bg-white text-slate-950 hover:bg-white/90"
                   >
                     {shareState === "shared" ? <CheckCircle2 /> : <Send />}
                     Share report
@@ -145,7 +161,7 @@ export function ReportView({
                     type="button"
                     onClick={handleCopy}
                     variant="outline"
-                    className="rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10"
+                    className="min-w-[170px] justify-center rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10"
                   >
                     {shareState === "copied" ? <CheckCircle2 /> : <Copy />}
                     {shareState === "copied" ? "Copied link" : "Copy public link"}
