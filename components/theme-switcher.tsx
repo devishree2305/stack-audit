@@ -4,75 +4,98 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Laptop, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
-const ThemeSwitcher = () => {
+export function ThemeSwitcher() {
   const [mounted, setMounted] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme, theme } = useTheme();
 
-  // useEffect only runs on the client, so now we can safely show the UI
   useEffect(() => {
     setMounted(true);
   }, []);
 
   if (!mounted) {
-    return null;
+    return (
+      <div
+        aria-hidden="true"
+        className="h-10 w-10 rounded-full border border-white/10 bg-white/5"
+      />
+    );
   }
 
-  const ICON_SIZE = 16;
+  const activeTheme = theme === "system" ? resolvedTheme : theme;
+  const iconClassName = "absolute inset-0 m-auto h-4 w-4 transition-all duration-200";
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size={"sm"}>
-          {theme === "light" ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Theme: ${theme}. Change theme`}
+          className="h-10 w-10 rounded-full border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+        >
+          <span className="relative h-4 w-4">
             <Sun
-              key="light"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
+              className={`${iconClassName} ${
+                activeTheme === "light"
+                  ? "rotate-0 scale-100 opacity-100"
+                  : "-rotate-90 scale-0 opacity-0"
+              }`}
             />
-          ) : theme === "dark" ? (
             <Moon
-              key="dark"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
+              className={`${iconClassName} ${
+                activeTheme === "dark"
+                  ? "rotate-0 scale-100 opacity-100"
+                  : "rotate-90 scale-0 opacity-0"
+              }`}
             />
-          ) : (
             <Laptop
-              key="system"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
+              className={`${iconClassName} ${
+                theme === "system"
+                  ? "scale-100 opacity-100"
+                  : "scale-0 opacity-0"
+              }`}
             />
-          )}
+          </span>
+          <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-content" align="start">
+      <DropdownMenuContent
+        align="end"
+        className="w-44 rounded-2xl border-white/10 bg-popover/95 p-2 shadow-xl backdrop-blur-xl"
+      >
+        <DropdownMenuLabel className="px-2 pb-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+          Appearance
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
         <DropdownMenuRadioGroup
           value={theme}
           onValueChange={(e) => setTheme(e)}
         >
-          <DropdownMenuRadioItem className="flex gap-2" value="light">
-            <Sun size={ICON_SIZE} className="text-muted-foreground" />{" "}
+          <DropdownMenuRadioItem className="flex gap-2 rounded-xl" value="light">
+            <Sun size={16} className="text-muted-foreground" />
             <span>Light</span>
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="dark">
-            <Moon size={ICON_SIZE} className="text-muted-foreground" />{" "}
+          <DropdownMenuRadioItem className="flex gap-2 rounded-xl" value="dark">
+            <Moon size={16} className="text-muted-foreground" />
             <span>Dark</span>
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="system">
-            <Laptop size={ICON_SIZE} className="text-muted-foreground" />{" "}
+          <DropdownMenuRadioItem className="flex gap-2 rounded-xl" value="system">
+            <Laptop size={16} className="text-muted-foreground" />
             <span>System</span>
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
-};
-
-export { ThemeSwitcher };
+}

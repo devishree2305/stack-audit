@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Button } from "@/components/ui/button";
 import { SectionContainer } from "@/components/section-container";
 
@@ -45,6 +46,7 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <ThemeSwitcher />
           <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300 lg:flex">
             <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
             Private audit draft storage
