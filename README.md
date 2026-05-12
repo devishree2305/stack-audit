@@ -12,15 +12,11 @@ Deployed URL:
 
 https://stack-audit-wheat.vercel.app
 
-Sample Public Audit Report:
-
-https://stack-audit-wheat.vercel.app/report/sample-audit
-
 ---
 
 # Demo Video
 
-https://youtu.be/zf2aSkUa68k?si=yA5AygMWd-t3P5dn
+https://youtu.be/cKjp9NgzQd8
 
 ---
 
