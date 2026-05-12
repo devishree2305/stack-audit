@@ -1,6 +1,6 @@
 import {
   createAdminClient,
-  createClient,
+  createReadonlyClient,
   hasAdminClientConfig,
 } from "@/lib/supabase/server";
 import type { AuditRepository } from "@/lib/audit-workflow";
@@ -49,7 +49,7 @@ export function createSupabaseAuditRepository(): AuditRepository {
       return adminClient;
     }
 
-    return createClient();
+    return createReadonlyClient();
   }
 
   async function getAdminSupabaseClient() {
