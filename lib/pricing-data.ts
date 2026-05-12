@@ -430,4 +430,9 @@ export const faqs = [
     answer:
       "The report will say so directly. We would rather show honest low savings than push weak recommendations that erode trust.",
   },
+  {
+    question: "Are the recommendations based on AI guesses?",
+    answer:
+      "No. The recommendation engine uses deterministic pricing logic, seat counts, and usage intensity rules to calculate the result. AI is only used to write the final summary in plain business language, not to invent savings or choose plans.",
+  },
 ];
