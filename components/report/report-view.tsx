@@ -7,12 +7,12 @@ import {
   BarChart3,
   CheckCircle2,
   Copy,
-  Mail,
   Rocket,
+  Send,
   Share2,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { AnimatedCounter } from "@/components/animated-counter";
 import { CTASection } from "@/components/cta-section";
@@ -21,111 +21,17 @@ import { PricingComparisonTable } from "@/components/report/pricing-comparison-t
 import { RecommendationCard } from "@/components/report/recommendation-card";
 import { SavingsCard } from "@/components/report/savings-card";
 import { Button } from "@/components/ui/button";
-import { createSampleAuditReport } from "@/lib/audit-engine";
-import type { AuditReport, AuditSummaryInput } from "@/types/audit";
-
-type SummarySource = "ai" | "fallback";
+import type { PublicAuditReport } from "@/types/audit";
 
 export function ReportView({
-  token,
-  initialReport,
-  auditId,
+  report,
   reportUrl,
 }: {
-  token: string;
-  initialReport?: AuditReport;
-  auditId?: string;
+  report: PublicAuditReport;
   reportUrl: string;
 }) {
-  const [report, setReport] = useState<AuditReport>(
-    initialReport ?? createSampleAuditReport(),
-  );
-  const [personalizedSummary, setPersonalizedSummary] = useState(report.summary);
-  const [summarySource, setSummarySource] = useState<SummarySource>("fallback");
-  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
-  const [shareState, setShareState] = useState<"idle" | "copied">("idle");
-
-  useEffect(() => {
-    setReport(initialReport ?? createSampleAuditReport());
-  }, [initialReport, token]);
-
-  useEffect(() => {
-    setPersonalizedSummary(report.summary);
-    setSummarySource("fallback");
-  }, [report.summary, report.token]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSummary() {
-      setIsSummaryLoading(true);
-
-      const payload: AuditSummaryInput = {
-        teamSize: report.teamSize,
-        primaryUseCase: report.primaryUseCase,
-        currentMonthlySpend: report.currentMonthlySpend,
-        optimizedMonthlySpend: report.optimizedMonthlySpend,
-        totalMonthlySavings: report.totalMonthlySavings,
-        totalAnnualSavings: report.totalAnnualSavings,
-        overallAssessment: report.overallAssessment,
-        recommendations: report.recommendations,
-      };
-
-      try {
-        const response = await fetch("/api/summary", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          throw new Error("summary request failed");
-        }
-
-        const data = (await response.json()) as {
-          summary?: string;
-          source?: SummarySource;
-        };
-
-        if (cancelled) {
-          return;
-        }
-
-        if (data.summary) {
-          setPersonalizedSummary(data.summary);
-          setSummarySource(data.source === "ai" ? "ai" : "fallback");
-        }
-      } catch {
-        if (!cancelled) {
-          setPersonalizedSummary(report.summary);
-          setSummarySource("fallback");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsSummaryLoading(false);
-        }
-      }
-    }
-
-    void loadSummary();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    report.currentMonthlySpend,
-    report.optimizedMonthlySpend,
-    report.overallAssessment,
-    report.primaryUseCase,
-    report.recommendations,
-    report.summary,
-    report.teamSize,
-    report.token,
-    report.totalAnnualSavings,
-    report.totalMonthlySavings,
-  ]);
+  const [shareState, setShareState] = useState<"idle" | "copied" | "shared">("idle");
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   const recommendationsByValue = useMemo(
     () =>
@@ -139,11 +45,39 @@ export function ReportView({
     (recommendation) => recommendation.actionType !== "maintain",
   );
 
-  const handleShare = async () => {
+  const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(reportUrl);
       setShareState("copied");
-      window.setTimeout(() => setShareState("idle"), 1800);
+      setShareMessage("Public report link copied.");
+      window.setTimeout(() => {
+        setShareState("idle");
+        setShareMessage(null);
+      }, 2200);
+    } catch {
+      setShareState("idle");
+      setShareMessage("We couldn't copy the link automatically. You can still share the URL from your browser.");
+    }
+  };
+
+  const handleNativeShare = async () => {
+    if (!navigator.share) {
+      await handleCopy();
+      return;
+    }
+
+    try {
+      await navigator.share({
+        title: report.shareTitle,
+        text: report.shareDescription,
+        url: reportUrl,
+      });
+      setShareState("shared");
+      setShareMessage("Public report shared.");
+      window.setTimeout(() => {
+        setShareState("idle");
+        setShareMessage(null);
+      }, 2200);
     } catch {
       setShareState("idle");
     }
@@ -153,59 +87,74 @@ export function ReportView({
     <div className="space-y-10">
       <section className="surface relative overflow-hidden rounded-[2rem] p-8 sm:p-10">
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/10 via-transparent to-sky-400/8" />
-        <div className="absolute inset-0" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.08),transparent_38%)]" />
         <div className="relative grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-6">
-            <div className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">
-              Audit token: {report.token}
+            <div className="flex flex-wrap gap-3">
+              <div className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">
+                Public report
+              </div>
+              <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                {report.teamSizeLabel}
+              </div>
             </div>
+
             <div className="space-y-4">
               <h1 className="text-balance text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                {report.totalMonthlySavings > 0
-                  ? "Your AI stack has room to get leaner."
-                  : "Your AI stack already looks well-optimized."}
+                {report.shareTitle}
               </h1>
               <p className="text-sm font-medium uppercase tracking-[0.18em] text-emerald-300">
-                {report.overallAssessment}
+                {report.optimizationStatus}
               </p>
               <div className="rounded-3xl border border-white/10 bg-slate-950/45 p-5">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="inline-flex items-center gap-2 text-sm font-medium text-white">
                     <Sparkles className="h-4 w-4 text-emerald-300" />
-                    Personalized audit summary
+                    Public summary
                   </div>
                   <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-400">
-                    {summarySource === "ai" ? "AI-personalized" : "Reliable fallback"}
+                    Privacy-safe by design
                   </span>
-                  {isSummaryLoading ? (
-                    <span className="text-xs text-slate-500">Refreshing summary...</span>
-                  ) : null}
                 </div>
                 <p className="mt-4 max-w-2xl text-base leading-8 text-slate-300">
-                  {personalizedSummary}
+                  {report.summary}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Button
-                type="button"
-                onClick={handleShare}
-                variant="outline"
-                className="rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10"
-              >
-                {shareState === "copied" ? <Copy /> : <Share2 />}
-                {shareState === "copied" ? "Copied link" : "Share audit"}
-              </Button>
-              <Button
-                asChild
-                className="rounded-full bg-white text-slate-950 hover:bg-white/90"
-              >
-                <Link href="/audit">
-                  Run another audit
-                  <ArrowRight />
-                </Link>
-              </Button>
+            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">
+                    Share your AI savings audit
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    This public version excludes emails, company names, roles, and internal lead metadata.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    onClick={handleNativeShare}
+                    className="rounded-full bg-white text-slate-950 hover:bg-white/90"
+                  >
+                    {shareState === "shared" ? <CheckCircle2 /> : <Send />}
+                    Share report
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleCopy}
+                    variant="outline"
+                    className="rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10"
+                  >
+                    {shareState === "copied" ? <CheckCircle2 /> : <Copy />}
+                    {shareState === "copied" ? "Copied link" : "Copy public link"}
+                  </Button>
+                </div>
+              </div>
+              {shareMessage ? (
+                <p className="mt-4 text-sm text-emerald-200">{shareMessage}</p>
+              ) : null}
             </div>
           </div>
 
@@ -222,16 +171,26 @@ export function ReportView({
                 {report.optimizedMonthlySpend.toFixed(0)} optimized
               </p>
             </div>
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                Total annual savings
-              </p>
-              <div className="mt-4 text-5xl font-semibold tracking-tight text-white">
-                <AnimatedCounter prefix="$" value={report.totalAnnualSavings} />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  Total annual savings
+                </p>
+                <div className="mt-4 text-5xl font-semibold tracking-tight text-white">
+                  <AnimatedCounter prefix="$" value={report.totalAnnualSavings} />
+                </div>
               </div>
-              <p className="mt-3 text-sm text-slate-400">
-                Honest estimate based on real plan-price differences only
-              </p>
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  Public preview snapshot
+                </p>
+                <p className="mt-4 text-xl font-semibold text-white">
+                  {report.toolCount} tools across a {report.primaryUseCase} workflow
+                </p>
+                <p className="mt-3 text-sm leading-7 text-slate-400">
+                  {report.strongestRecommendation}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -243,16 +202,13 @@ export function ReportView({
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 text-sm font-medium text-emerald-200">
                 <Rocket className="h-4 w-4" />
-                Credex opportunity
+                High-savings signal
               </div>
               <h2 className="text-2xl font-semibold text-white">
-                Savings above $500/month usually justify a procurement sprint.
+                This public report shows enough savings to justify a deeper procurement sprint.
               </h2>
               <p className="max-w-3xl text-sm leading-7 text-emerald-100/80">
-                Beyond the deterministic plan changes shown here, this level of
-                spend often unlocks meaningful extra savings through vendor
-                negotiation, startup credits, committed-use pricing, and tighter
-                API governance.
+                Beyond plan changes, this level of spend often creates room for credits, negotiated pricing, and tighter AI routing policy.
               </p>
             </div>
             <Button
@@ -260,7 +216,7 @@ export function ReportView({
               className="rounded-full bg-white text-slate-950 hover:bg-white/90"
             >
               <Link href="/audit">
-                Book Credex consultation
+                Run your own audit
                 <ArrowRight />
               </Link>
             </Button>
@@ -352,7 +308,7 @@ export function ReportView({
           <div>
             <h2 className="text-xl font-semibold text-white">Recommendations</h2>
             <p className="mt-2 text-sm text-slate-400">
-              Real-plan actions first. No fake pricing, no forced savings.
+              Public-safe optimization notes with no lead data attached.
             </p>
           </div>
           <div className="text-sm text-slate-500">
@@ -375,48 +331,42 @@ export function ReportView({
       <PricingComparisonTable recommendations={report.recommendations} />
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        {auditId ? (
-          <LeadCaptureForm
-            auditId={auditId}
-            reportToken={report.token}
-            reportUrl={reportUrl}
-            teamSize={report.teamSize}
-            totalMonthlySavings={report.totalMonthlySavings}
-          />
-        ) : (
-          <div className="surface rounded-[1.75rem] p-6">
-            <div className="flex items-center gap-3">
-              <Mail className="h-5 w-5 text-white" />
-              <h2 className="text-xl font-semibold text-white">
-                Shareable sample report
-              </h2>
-            </div>
-            <p className="mt-3 max-w-xl text-sm leading-7 text-slate-300">
-              Sample reports stay public for exploration, but lead capture and email
-              confirmation are only enabled for persisted audits created through the
-              live workflow.
-            </p>
-          </div>
-        )}
+        <LeadCaptureForm
+          reportToken={report.token}
+          reportUrl={reportUrl}
+          teamSizeLabel={report.teamSizeLabel}
+          totalMonthlySavings={report.totalMonthlySavings}
+        />
 
         <div className="surface rounded-[1.75rem] p-6">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-            Credex consultation
+            Share loop
           </p>
           <h2 className="mt-4 text-2xl font-semibold text-white">
-            {report.consultationRecommended
-              ? "This stack is worth a deeper savings sprint."
-              : report.totalMonthlySavings < 100
-                ? "This stack already reads as well-managed."
-                : "There is real optimization opportunity without forcing a vendor overhaul."}
+            Make the savings story easy to forward, screenshot, and discuss.
           </h2>
           <p className="mt-3 text-sm leading-7 text-slate-300">
-            {report.consultationRecommended
-              ? "Savings above $500/month usually justify a hands-on review of tool policy, procurement, and API routing. Book a Credex consultation to turn recommendations into implementation."
-              : report.totalMonthlySavings < 100
-                ? "No hard sell here. The current stack does not show meaningful avoidable waste based on public pricing and the workflow you described."
-                : "The deterministic recommendations shown here should be actionable without assuming unrealistic workflow changes."}
+            This public view is designed for founders, finance owners, operators, and teammates who need a clean AI spend snapshot without access to any private lead details.
           </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button
+              type="button"
+              onClick={handleNativeShare}
+              className="rounded-full bg-white text-slate-950 hover:bg-white/90"
+            >
+              <Share2 />
+              Share public report
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCopy}
+              variant="outline"
+              className="rounded-full border-white/15 bg-white/5 text-white hover:bg-white/10"
+            >
+              <Copy />
+              Copy URL
+            </Button>
+          </div>
           <Button
             asChild
             className="mt-6 rounded-full bg-white text-slate-950 hover:bg-white/90"
@@ -429,9 +379,7 @@ export function ReportView({
                 </>
               ) : (
                 <>
-                  {report.consultationRecommended
-                    ? "Book Credex consultation"
-                    : "Run another audit"}
+                  Run your own audit
                   <ArrowRight />
                 </>
               )}

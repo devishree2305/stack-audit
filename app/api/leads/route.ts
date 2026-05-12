@@ -8,7 +8,8 @@ function isLeadPayload(
   body: unknown,
 ): body is {
   email: string;
-  auditId: string;
+  auditId?: string;
+  shareToken?: string;
   companyName?: string;
   role?: string;
   website?: string;
@@ -19,7 +20,10 @@ function isLeadPayload(
   }
 
   const value = body as Record<string, unknown>;
-  return typeof value.email === "string" && typeof value.auditId === "string";
+  return (
+    typeof value.email === "string" &&
+    (typeof value.auditId === "string" || typeof value.shareToken === "string")
+  );
 }
 
 export async function handleLeadPost(
@@ -30,7 +34,7 @@ export async function handleLeadPost(
 
   if (!isLeadPayload(body)) {
     const errorResponse = createErrorResponse(
-      "Email and audit ID are required.",
+      "Email and a public report token are required.",
       400,
     );
     return NextResponse.json(errorResponse.body, { status: errorResponse.status });

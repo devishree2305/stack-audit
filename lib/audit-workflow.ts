@@ -68,7 +68,8 @@ export interface SubmitLeadDependencies {
 }
 
 export interface LeadSubmissionInput {
-  auditId: string;
+  auditId?: string;
+  shareToken?: string;
   email: string;
   companyName?: string;
   role?: string;
@@ -242,13 +243,19 @@ export async function submitLeadCapture(
     throw new Error("Please enter a valid work email address.");
   }
 
-  const audit = await dependencies.repository.getAuditById(input.auditId);
+  const audit =
+    typeof input.auditId === "string"
+      ? await dependencies.repository.getAuditById(input.auditId)
+      : typeof input.shareToken === "string"
+        ? await dependencies.repository.getAuditByShareToken(input.shareToken)
+        : null;
+
   if (!audit) {
     throw new Error("We couldn't find that audit anymore. Please rerun the audit.");
   }
 
   const existingLead = await dependencies.repository.findLeadByAuditAndEmail(
-    input.auditId,
+    audit.id,
     email,
   );
 
@@ -264,7 +271,7 @@ export async function submitLeadCapture(
   }
 
   await dependencies.repository.insertLead({
-    audit_id: input.auditId,
+    audit_id: audit.id,
     email,
     company_name: trimOptionalValue(input.companyName),
     role: trimOptionalValue(input.role),

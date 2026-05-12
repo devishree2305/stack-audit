@@ -10,16 +10,14 @@ import type { ApiErrorResponse, LeadSubmissionResponse } from "@/types/api";
 type SubmissionState = "idle" | "submitting" | "success" | "duplicate";
 
 export function LeadCaptureForm({
-  auditId,
   reportToken,
   reportUrl,
-  teamSize,
+  teamSizeLabel,
   totalMonthlySavings,
 }: {
-  auditId: string;
   reportToken: string;
   reportUrl: string;
-  teamSize: number;
+  teamSizeLabel: string;
   totalMonthlySavings: number;
 }) {
   const [email, setEmail] = useState("");
@@ -48,7 +46,7 @@ export function LeadCaptureForm({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          auditId,
+          shareToken: reportToken,
           email,
           companyName,
           role,
@@ -96,10 +94,10 @@ export function LeadCaptureForm({
 
       <div className="mt-4 flex flex-wrap gap-3 text-xs uppercase tracking-[0.18em] text-slate-400">
         <span className="rounded-full border border-white/10 px-3 py-1">
-          Team size: {teamSize}
+          {teamSizeLabel}
         </span>
         <span className="rounded-full border border-white/10 px-3 py-1">
-          Audit: {reportToken}
+          Public report link
         </span>
       </div>
 

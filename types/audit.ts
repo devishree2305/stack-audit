@@ -83,3 +83,27 @@ export interface AuditReport {
   roiMetrics: RoiMetric[];
   consultationRecommended: boolean;
 }
+
+export interface PublicAuditReport {
+  token: string;
+  createdAt: string;
+  primaryUseCase: PrimaryUseCase;
+  currentMonthlySpend: number;
+  optimizedMonthlySpend: number;
+  totalMonthlySavings: number;
+  totalAnnualSavings: number;
+  overallAssessment: string;
+  optimizationScore: number;
+  summary: string;
+  recommendations: ToolRecommendation[];
+  chart: SavingsSeriesPoint[];
+  roiMetrics: RoiMetric[];
+  consultationRecommended: boolean;
+  toolCount: number;
+  toolNames: string[];
+  teamSizeLabel: string;
+  strongestRecommendation: string;
+  optimizationStatus: string;
+  shareTitle: string;
+  shareDescription: string;
+}

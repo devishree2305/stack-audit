@@ -222,4 +222,27 @@ describe("lead capture workflow", () => {
     expect(result.status).toBe("filtered");
     expect(repository.leads).toHaveLength(0);
   });
+
+  it("allows lead capture to resolve audits by public share token", async () => {
+    const repository = new InMemoryAuditRepository();
+    const audit = await persistAuditReport(auditValues, {
+      repository,
+      generateToken: () => "public-token",
+    });
+
+    const result = await submitLeadCapture(
+      {
+        shareToken: audit.shareToken,
+        email: "viewer@example.com",
+      },
+      "https://stackaudit.test",
+      {
+        repository,
+        sendConfirmationEmail: async () => ({ ok: true }),
+      },
+    );
+
+    expect(result.status).toBe("created");
+    expect(repository.leads).toHaveLength(1);
+  });
 });

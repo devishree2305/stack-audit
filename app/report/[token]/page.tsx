@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { headers } from "next/headers";
 
@@ -8,49 +9,79 @@ import { Navbar } from "@/components/navbar";
 import { ReportView } from "@/components/report/report-view";
 import { Button } from "@/components/ui/button";
 import { SectionContainer } from "@/components/section-container";
-import { buildShareUrl, createAuditReportFromRecord } from "@/lib/audit-workflow";
-import {
-  createHighSavingsMockAuditReport,
-  createOptimizedMockAuditReport,
-  createSampleAuditReport,
-} from "@/lib/audit-engine";
-import { createSupabaseAuditRepository } from "@/lib/supabase/audit-repository";
+import { buildShareUrl } from "@/lib/audit-workflow";
+import { loadPublicReportByToken, resolveAppOrigin } from "@/lib/share";
 
-async function loadReportState(token: string, origin: string) {
-  if (token === "sample-audit") {
-    return {
-      auditId: undefined,
-      report: createSampleAuditReport(),
-      reportUrl: buildShareUrl(origin, token),
-    };
-  }
-
-  if (token === "high-savings-audit") {
-    return {
-      auditId: undefined,
-      report: createHighSavingsMockAuditReport(),
-      reportUrl: buildShareUrl(origin, token),
-    };
-  }
-
-  if (token === "optimized-audit") {
-    return {
-      auditId: undefined,
-      report: createOptimizedMockAuditReport(),
-      reportUrl: buildShareUrl(origin, token),
-    };
-  }
-
-  const repository = createSupabaseAuditRepository();
-  const audit = await repository.getAuditByShareToken(token);
-  if (!audit) {
-    return null;
-  }
+function createInvalidMetadata(origin: string, token: string): Metadata {
+  const canonical = buildShareUrl(origin, token);
 
   return {
-    auditId: audit.id,
-    report: createAuditReportFromRecord(audit),
-    reportUrl: buildShareUrl(origin, token),
+    title: "Public audit report unavailable | Stack Audit",
+    description:
+      "This shared Stack Audit report is unavailable. Run a fresh audit to generate a new public report link.",
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title: "Public audit report unavailable | Stack Audit",
+      description:
+        "This shared Stack Audit report is unavailable. Run a fresh audit to generate a new public report link.",
+      type: "article",
+      url: canonical,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "Public audit report unavailable | Stack Audit",
+      description:
+        "This shared Stack Audit report is unavailable. Run a fresh audit to generate a new public report link.",
+    },
+  };
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  const headerStore = await headers();
+  const origin = resolveAppOrigin(headerStore);
+  const report = await loadPublicReportByToken(token);
+
+  if (!report) {
+    return createInvalidMetadata(origin, token);
+  }
+
+  const canonical = buildShareUrl(origin, token);
+  const ogImageUrl = `${origin}/report/${token}/opengraph-image`;
+
+  return {
+    title: `${report.shareTitle} | Stack Audit`,
+    description: report.shareDescription,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title: report.shareTitle,
+      description: report.shareDescription,
+      url: canonical,
+      type: "article",
+      siteName: "Stack Audit",
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: report.shareTitle,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: report.shareTitle,
+      description: report.shareDescription,
+      images: [ogImageUrl],
+    },
   };
 }
 
@@ -61,32 +92,28 @@ async function ReportPageContent({
 }) {
   const { token } = await params;
   const headerStore = await headers();
-  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
-  const protocol = headerStore.get("x-forwarded-proto") ?? "http";
-  const origin =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
-    (host ? `${protocol}://${host}` : "http://localhost:3000");
-  const state = await loadReportState(token, origin);
+  const origin = resolveAppOrigin(headerStore);
+  const report = await loadPublicReportByToken(token);
 
-  if (!state || !state.report) {
+  if (!report) {
     return (
       <div className="surface rounded-[1.75rem] p-8 sm:p-10">
         <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
           Report unavailable
         </p>
         <h1 className="mt-4 text-3xl font-semibold text-white">
-          This share link is invalid or has expired.
+          This public audit link is invalid or has expired.
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-          The audit may have been removed, the token may be mistyped, or the report
-          was never saved successfully. Run a fresh audit to generate a new shareable
-          link.
+          The report may have been removed, the URL may be mistyped, or the audit
+          was never saved correctly. Run a fresh Stack Audit to generate a new
+          shareable report.
         </p>
         <Button
           asChild
           className="mt-6 rounded-full bg-white text-slate-950 hover:bg-white/90"
         >
-          <Link href="/audit">Run a new audit</Link>
+          <Link href="/">Back to homepage</Link>
         </Button>
       </div>
     );
@@ -94,10 +121,8 @@ async function ReportPageContent({
 
   return (
     <ReportView
-      token={token}
-      initialReport={state.report}
-      auditId={state.auditId}
-      reportUrl={state.reportUrl}
+      report={report}
+      reportUrl={buildShareUrl(origin, token)}
     />
   );
 }
@@ -115,7 +140,7 @@ export default function ReportPage({
         <Suspense
           fallback={
             <div className="surface rounded-[1.75rem] p-8 text-sm text-slate-400">
-              Loading audit report...
+              Loading public audit report...
             </div>
           }
         >
