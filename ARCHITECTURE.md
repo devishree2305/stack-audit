@@ -25,14 +25,16 @@ No website builders are used. No admin dashboard templates are used. The UI and 
 flowchart TD
     U[User] --> FE[Next.js Frontend]
 
-    FE --> AUDIT_API[/POST /api/audit/]
-    FE --> LEADS_API[/POST /api/leads/]
-    FE --> SHARE_PAGE[/GET /report/[token]/]
+    FE --> AUDIT_API["POST /api/audit"]
+    FE --> LEADS_API["POST /api/leads"]
+    FE --> SHARE_PAGE["GET /report/token"]
 
     AUDIT_API --> ENGINE[Deterministic Audit Engine]
+
     ENGINE --> ANTH[Anthropic Summary Layer]
-    ANTH --> WF[Audit Workflow Service]
-    ENGINE --> WF
+    ENGINE --> WF[Audit Workflow Service]
+
+    ANTH --> WF
     WF --> SB[(Supabase)]
 
     SHARE_PAGE --> SHARE[Public Share Shaping]
@@ -40,6 +42,7 @@ flowchart TD
     SHARE --> FE
 
     LEADS_API --> LEAD_WF[Lead Capture Workflow]
+
     LEAD_WF --> SB
     LEAD_WF --> RESEND[Resend Email API]
 

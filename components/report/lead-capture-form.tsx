@@ -61,11 +61,7 @@ export function LeadCaptureForm({
       }
 
       setState(data.status === "duplicate" ? "duplicate" : "success");
-      setMessage(
-        data.emailSent || !data.emailError
-          ? data.message
-          : `${data.message} Email provider response: ${data.emailError}`,
-      );
+      setMessage(data.emailDeliveryMessage ?? data.message);
     } catch (error) {
       setState("idle");
       setMessage(

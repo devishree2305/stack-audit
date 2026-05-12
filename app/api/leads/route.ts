@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { createErrorResponse, submitLeadCapture } from "@/lib/audit-workflow";
+import {
+  createErrorResponse,
+  submitLeadCapture,
+  type SubmitLeadDependencies,
+} from "@/lib/audit-workflow";
 import { sendAuditConfirmationEmail } from "@/lib/resend";
 import { createSupabaseAuditRepository } from "@/lib/supabase/audit-repository";
+import type { LeadSubmissionResponse } from "@/types/api";
 
 function isLeadPayload(
   body: unknown,
@@ -29,6 +34,7 @@ function isLeadPayload(
 export async function handleLeadPost(
   request: Request,
   repository = createSupabaseAuditRepository(),
+  sendConfirmationEmail: SubmitLeadDependencies["sendConfirmationEmail"] = sendAuditConfirmationEmail,
 ) {
   const body = (await request.json()) as unknown;
 
@@ -43,22 +49,38 @@ export async function handleLeadPost(
   try {
     const response = await submitLeadCapture(body, new URL(request.url).origin, {
       repository,
-      sendConfirmationEmail: sendAuditConfirmationEmail,
+      sendConfirmationEmail,
     });
 
-    if (!response.emailSent && response.emailError) {
-      console.error("Lead confirmation email failed:", response.emailError);
+    if (!response.emailSent && response.internalEmailError) {
+      console.error("Lead confirmation email failed:", response.internalEmailError);
     }
 
-    return NextResponse.json(response);
+    const clientResponse: LeadSubmissionResponse = {
+      success: response.success,
+      status: response.status,
+      emailSent: response.emailSent,
+      emailDeliveryMessage: response.emailDeliveryMessage,
+      reportUrl: response.reportUrl,
+      message: response.message,
+    };
+
+    return NextResponse.json(clientResponse satisfies LeadSubmissionResponse);
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
         : "We couldn't save your details right now.";
     const status = /valid work email|find that audit/i.test(message) ? 400 : 500;
+    const clientMessage = status === 400
+      ? message
+      : "We couldn't save your details right now.";
 
-    return NextResponse.json({ error: message }, { status });
+    if (status === 500) {
+      console.error("Lead capture failed:", error);
+    }
+
+    return NextResponse.json({ error: clientMessage }, { status });
   }
 }
 

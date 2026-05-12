@@ -16,7 +16,7 @@ export interface LeadSubmissionResponse {
   success: true;
   status: "created" | "duplicate" | "filtered";
   emailSent: boolean;
-  emailError?: string;
+  emailDeliveryMessage?: string;
   reportUrl?: string;
   message: string;
 }

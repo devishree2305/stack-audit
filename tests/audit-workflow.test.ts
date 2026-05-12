@@ -1,5 +1,7 @@
 import { handleAuditPost } from "@/app/api/audit/route";
+import { handleLeadPost } from "@/app/api/leads/route";
 import {
+  DEVELOPMENT_EMAIL_DELIVERY_MESSAGE,
   createAuditReportFromRecord,
   getAuditReportByToken,
   persistAuditReport,
@@ -160,8 +162,49 @@ describe("lead capture workflow", () => {
 
     expect(result.status).toBe("created");
     expect(result.emailSent).toBe(false);
+    expect(result.message).toBe(DEVELOPMENT_EMAIL_DELIVERY_MESSAGE);
+    expect(result.emailDeliveryMessage).toBe(DEVELOPMENT_EMAIL_DELIVERY_MESSAGE);
     expect(repository.leads).toHaveLength(1);
     expect(repository.leads[0].email).toBe("founder@example.com");
+  });
+
+  it("does not expose raw transactional email provider errors in the lead API response", async () => {
+    const repository = new InMemoryAuditRepository();
+    const audit = await persistAuditReport(auditValues, {
+      repository,
+      generateToken: () => "provider-error-token",
+    });
+    const providerError = JSON.stringify({
+      name: "validation_error",
+      message: "You can only send testing emails to your own email address",
+    });
+    const request = new Request("https://stackaudit.test/api/leads", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        auditId: audit.auditId,
+        email: "founder@example.com",
+      }),
+    });
+
+    const response = await handleLeadPost(
+      request,
+      repository,
+      async () => ({ ok: false, error: providerError }),
+    );
+    const data = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(data.emailSent).toBe(false);
+    expect(data.message).toBe(DEVELOPMENT_EMAIL_DELIVERY_MESSAGE);
+    expect(data.emailDeliveryMessage).toBe(DEVELOPMENT_EMAIL_DELIVERY_MESSAGE);
+    expect(JSON.stringify(data)).not.toContain("validation_error");
+    expect(JSON.stringify(data)).not.toContain("testing emails");
+    expect(JSON.stringify(data)).not.toContain("internalEmailError");
+    expect(repository.leads).toHaveLength(1);
   });
 
   it("prevents duplicate lead submissions for the same audit and email", async () => {

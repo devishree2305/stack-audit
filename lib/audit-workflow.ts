@@ -77,6 +77,13 @@ export interface LeadSubmissionInput {
   reportUrl?: string;
 }
 
+export const DEVELOPMENT_EMAIL_DELIVERY_MESSAGE =
+  "Your audit was saved successfully. Email delivery is currently limited to verified test addresses while the project is in development mode.";
+
+export interface LeadCaptureResult extends LeadSubmissionResponse {
+  internalEmailError?: string;
+}
+
 export function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -236,13 +243,12 @@ export async function submitLeadCapture(
   input: LeadSubmissionInput,
   origin: string,
   dependencies: SubmitLeadDependencies,
-) {
+): Promise<LeadCaptureResult> {
   if (input.website?.trim()) {
-    const filteredResponse: LeadSubmissionResponse = {
+    const filteredResponse: LeadCaptureResult = {
       success: true,
       status: "filtered",
       emailSent: false,
-      emailError: undefined,
       reportUrl: input.reportUrl,
       message: "Thanks. We have received your request.",
     };
@@ -276,10 +282,9 @@ export async function submitLeadCapture(
       success: true,
       status: "duplicate",
       emailSent: false,
-      emailError: undefined,
       reportUrl: input.reportUrl ?? buildShareUrl(origin, audit.share_token),
       message: "This email is already attached to the report.",
-    } satisfies LeadSubmissionResponse;
+    } satisfies LeadCaptureResult;
   }
 
   await dependencies.repository.insertLead({
@@ -304,12 +309,13 @@ export async function submitLeadCapture(
     success: true,
     status: "created",
     emailSent: emailResult.ok,
-    emailError: emailResult.ok ? undefined : emailResult.error,
+    emailDeliveryMessage: emailResult.ok ? undefined : DEVELOPMENT_EMAIL_DELIVERY_MESSAGE,
+    internalEmailError: emailResult.ok ? undefined : emailResult.error,
     reportUrl,
     message: emailResult.ok
       ? "Report saved. A confirmation email is on its way."
-      : "Report saved. We couldn't send the email, but your details were captured.",
-  } satisfies LeadSubmissionResponse;
+      : DEVELOPMENT_EMAIL_DELIVERY_MESSAGE,
+  } satisfies LeadCaptureResult;
 }
 
 export function createPersistedAuditResponse(
